@@ -1,0 +1,7 @@
+interface:
+  display_name: "Revisor ABNT DOCX"
+  short_description: "Revisa e formata TCC em ABNT"
+  default_prompt: "Use $revisor-abnt-docx para revisar e formatar este TCC em DOCX, preservando o original."
+
+policy:
+  allow_implicit_invocation: true
