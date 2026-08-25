@@ -121,6 +121,56 @@ def test_engine_applies_real_layout_and_preserves_word_numbering(tmp_path):
     assert any(issue["code"] == "direct_quote_without_locator" for issue in report["issues_remaining"])
 
 
+def test_engine_normalizes_author_case_only_in_textual_citations(tmp_path):
+    source = tmp_path / "entrada-citacoes.docx"
+    output = tmp_path / "saida-citacoes.docx"
+    document = Document()
+    document.add_paragraph("CAPA")
+    document.add_heading("1 INTRODUÇÃO", level=1)
+    document.add_paragraph("A análise considera (SILVA; SOUZA, 2020) e (IBGE, 2021). SILVA (2020) também discute o tema.")
+    document.add_heading("REFERÊNCIAS", level=1)
+    document.add_paragraph("SILVA, Maria. Obra de Silva. Brasília: Editora, 2020.")
+    document.add_paragraph("SOUZA, João. Obra de Souza. Brasília: Editora, 2020.")
+    document.add_paragraph("IBGE. Pesquisa de referência. Rio de Janeiro: IBGE, 2021.")
+    document.save(source)
+
+    report = apply_formatting(source, output, ReviewConfig(citation_system="author-date"))
+    revised = Document(output)
+    body = next(p.text for p in revised.paragraphs if p.text.startswith("A análise considera"))
+    references = [p.text for p in revised.paragraphs if p.text.startswith(("SILVA,", "SOUZA,", "IBGE."))]
+
+    assert "(Silva; Souza, 2020)" in body
+    assert "(IBGE, 2021)" in body
+    assert "Silva (2020)" in body
+    assert set(references) == {
+        "SILVA, Maria. Obra de Silva. Brasília: Editora, 2020.",
+        "SOUZA, João. Obra de Souza. Brasília: Editora, 2020.",
+        "IBGE. Pesquisa de referência. Rio de Janeiro: IBGE, 2021.",
+    }
+    assert any(action["code"] == "citation_author_case_normalized" for action in report["actions_applied"])
+
+
+def test_engine_preserves_citation_split_between_runs(tmp_path):
+    source = tmp_path / "entrada-citacao-dividida.docx"
+    output = tmp_path / "saida-citacao-dividida.docx"
+    document = Document()
+    document.add_heading("1 INTRODUÇÃO", level=1)
+    paragraph = document.add_paragraph("Texto com ")
+    paragraph.add_run("(SIL").bold = True
+    paragraph.add_run("VA, 2020) em trechos distintos.")
+    document.add_heading("REFERÊNCIAS", level=1)
+    document.add_paragraph("SILVA, Maria. Obra de Silva. Brasília: Editora, 2020.")
+    document.save(source)
+
+    report = apply_formatting(source, output, ReviewConfig(citation_system="author-date"))
+    revised = Document(output)
+    body = next(p for p in revised.paragraphs if p.text.startswith("Texto com"))
+
+    assert body.text == "Texto com (SILVA, 2020) em trechos distintos."
+    assert body.runs[1].bold is True
+    assert any(issue["code"] == "citation_case_split_across_runs" for issue in report["issues_remaining"])
+
+
 def test_audit_does_not_claim_reference_or_pagination_corrections_without_evidence():
     document = Document()
     document.add_heading("1 INTRODUÇÃO", level=1)

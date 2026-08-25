@@ -11,6 +11,7 @@ Aplicar este checklist somente depois de identificar o tipo do documento e, se e
 5. Em resumo/abstract e palavras-chave identificados, aplicar espaço simples e sem primeira linha; não modificar conteúdo ou idioma.
 6. Em referências identificadas, aplicar margem esquerda, espaço simples, sem recuo de primeira linha e separação entre entradas. Reordenar somente lista autor-data quando todas as chaves autor/ano forem lidas com segurança e não houver duplicidade.
 7. Preservar um campo TOC existente e solicitar atualização no Word. Inserir campo TOC apenas em título SUMÁRIO vazio. Nunca escrever números de página manualmente.
+8. Em chamadas autor-data do corpo textual, converter somente sobrenomes de pessoas físicas em caixa alta para maiúsculas/minúsculas — por exemplo, `(Silva, 2020)`. Preservar siglas, chamadas ambíguas e a entrada da referência final, que continua no formato `SILVA, Nome`.
 
 ## Achados que devem ser relatados, não inventados
 

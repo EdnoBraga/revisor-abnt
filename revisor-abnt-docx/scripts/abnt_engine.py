@@ -37,6 +37,21 @@ YEAR_RE = re.compile(r"\b((?:1[5-9]|20)\d{2}[a-z]?)\b", re.IGNORECASE)
 PARENTHETICAL_RE = re.compile(r"\(([^()]{1,220})\)")
 QUOTED_RE = re.compile(r"[\"\u201c\u201d].{15,}[\"\u201c\u201d]", re.DOTALL)
 LOCATOR_RE = re.compile(r"\b(?:p\.|pagina|página|localiz(?:acao|ação)|posi(?:cao|ção))\s*\d+", re.IGNORECASE)
+PARENTHETICAL_AUTHOR_YEAR_RE = re.compile(
+    r"(?:^|(?P<separator>;))(?P<leading>\s*)(?P<authors>[^,()]{2,100}?)\s*,\s*(?P<year>(?:1[5-9]|20)\d{2}[a-z]?)\b",
+    re.IGNORECASE,
+)
+NARRATIVE_AUTHOR_YEAR_RE = re.compile(
+    r"\b(?P<authors>[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý'’.-]*(?:\s+(?:[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý'’.-]*|E|DA|DAS|DE|DO|DOS))*?(?:\s+ET\s+AL\.)?)\s*\(\s*(?P<year>(?:1[5-9]|20)\d{2}[a-z]?)\b"
+)
+NAME_PARTICLES = {"da", "das", "de", "do", "dos", "e"}
+# Siglas são uma exceção à forma "Maiúscula/minúscula" da NBR 10520:2023.
+# A lista reduz falsos positivos quando a referência ainda não permite identificar
+# com segurança se uma chamada curta é sobrenome ou entidade siglada.
+KNOWN_INITIALISMS = {
+    "ABNT", "ANEEL", "ANVISA", "CAPES", "CGU", "CNPQ", "IBAMA", "IBGE", "IPEA",
+    "MEC", "OCDE", "OIT", "OMS", "ONU", "STF", "STJ", "TCU", "UNESCO", "UNICEF",
+}
 
 
 @dataclass(frozen=True)
@@ -174,6 +189,164 @@ def reference_key(text: str) -> str | None:
     if not author:
         return None
     return f"{author}|{year.group(1).lower()}"
+
+
+def _reference_author_profiles(paragraphs: list[Paragraph], start: int | None, end: int | None) -> dict[str, set[str]]:
+    """Extrai perfis mínimos da lista final sem alterar as referências.
+
+    O sobrenome antes da vírgula costuma indicar pessoa física; entradas curtas
+    antes de ponto podem representar entidade siglada. Esses perfis tornam a
+    alteração da citação menos arriscada, especialmente para sobrenomes curtos.
+    """
+    people: set[str] = set()
+    initialisms = set(KNOWN_INITIALISMS)
+    if start is None or end is None:
+        return {"people": people, "initialisms": initialisms}
+    for paragraph in paragraphs[start + 1:end]:
+        text = paragraph.text.strip()
+        match = re.match(r"^\s*([^,\.]{2,100})(?P<separator>,|\.)", text)
+        if not match:
+            continue
+        entry = match.group(1).strip()
+        key = normalized(entry)
+        if match.group("separator") == ",":
+            people.add(key)
+        elif re.fullmatch(r"[A-Z]{2,12}", entry):
+            initialisms.add(key)
+    return {"people": people, "initialisms": initialisms}
+
+
+def _title_case_name(value: str) -> str:
+    """Converte sobrenomes em caixa alta, preservando partículas e hífen/apóstrofo."""
+    def title_word(word: str) -> str:
+        lower = word.lower()
+        if lower in NAME_PARTICLES:
+            return lower
+        return re.sub(
+            r"(^|[-'’])([a-zà-öø-ÿ])",
+            lambda match: f"{match.group(1)}{match.group(2).upper()}",
+            lower,
+        )
+
+    return " ".join(title_word(word) for word in value.split())
+
+
+def _format_citation_author(author: str, profiles: dict[str, set[str]]) -> tuple[str, bool, bool]:
+    """Retorna texto, se houve mudança e se a chamada curta ficou ambígua."""
+    match = re.match(r"^(?P<leading>\s*)(?P<core>.*?)(?P<trailing>\s*)$", author, re.DOTALL)
+    assert match is not None
+    leading, core, trailing = match.group("leading"), match.group("core"), match.group("trailing")
+    suffix_match = re.search(r"\s+ET\s+AL\.\s*$", core, re.IGNORECASE)
+    suffix = ""
+    if suffix_match:
+        suffix = " et al."
+        core = core[:suffix_match.start()].rstrip()
+    if not core or not core.isupper():
+        return author, False, False
+
+    key = normalized(core)
+    if key in profiles["initialisms"]:
+        return author, False, False
+    # Uma entrada "SILVA, Nome" na lista final comprova que SILVA é pessoa,
+    # mesmo quando o sobrenome é curto. Sem esse indício, siglas curtas ficam
+    # para conferência humana; não as transformamos às cegas.
+    unspaced = key.replace(" ", "")
+    if key not in profiles["people"] and " " not in core and len(unspaced) <= 4:
+        return author, False, True
+
+    formatted = _title_case_name(core) + suffix
+    return f"{leading}{formatted}{trailing}", formatted != core + suffix, False
+
+
+def _format_citation_author_expression(authors: str, profiles: dict[str, set[str]]) -> tuple[str, int, int]:
+    """Formata uma ou mais autorias separadas por ponto e vírgula."""
+    changed = 0
+    ambiguous = 0
+    chunks = re.split(r"(;)", authors)
+    for index in range(0, len(chunks), 2):
+        formatted, did_change, is_ambiguous = _format_citation_author(chunks[index], profiles)
+        chunks[index] = formatted
+        changed += int(did_change)
+        ambiguous += int(is_ambiguous)
+    return "".join(chunks), changed, ambiguous
+
+
+def _normalize_citation_case_in_text(text: str, profiles: dict[str, set[str]]) -> tuple[str, int, int]:
+    """Normaliza somente chamadas autor-data em um trecho de texto seguro."""
+    changes = 0
+    ambiguous = 0
+
+    def replace_parenthetical(match: re.Match[str]) -> str:
+        nonlocal changes, ambiguous
+        content = match.group(1)
+        if not _citation_parts(match.group(0)):
+            return match.group(0)
+
+        def replace_author_year(author_year_match: re.Match[str]) -> str:
+            nonlocal changes, ambiguous
+            authors, changed_here, ambiguous_here = _format_citation_author_expression(author_year_match.group("authors"), profiles)
+            changes += changed_here
+            ambiguous += ambiguous_here
+            separator = author_year_match.group("separator") or ""
+            return f"{separator}{author_year_match.group('leading')}{authors}, {author_year_match.group('year')}"
+
+        return f"({PARENTHETICAL_AUTHOR_YEAR_RE.sub(replace_author_year, content)})"
+
+    normalized_text = PARENTHETICAL_RE.sub(replace_parenthetical, text)
+
+    def replace_narrative(match: re.Match[str]) -> str:
+        nonlocal changes, ambiguous
+        authors, changed_here, ambiguous_here = _format_citation_author_expression(match.group("authors"), profiles)
+        changes += changed_here
+        ambiguous += ambiguous_here
+        return f"{authors} ({match.group('year')}"
+
+    normalized_text = NARRATIVE_AUTHOR_YEAR_RE.sub(replace_narrative, normalized_text)
+    return normalized_text, changes, ambiguous
+
+
+def _normalize_citation_case_in_paragraphs(
+    paragraphs: list[Paragraph],
+    text_start: int | None,
+    reference_start: int | None,
+    profiles: dict[str, set[str]],
+    issues: list[dict[str, Any]],
+) -> tuple[int, int]:
+    """Altera apenas runs autônomos; chamadas partidas entre runs são relatadas."""
+    if text_start is None:
+        return 0, 0
+    changes = 0
+    ambiguous = 0
+    for index, paragraph in enumerate(paragraphs):
+        if index < text_start or (reference_start is not None and index >= reference_start):
+            continue
+        original = paragraph.text
+        desired, paragraph_changes, paragraph_ambiguous = _normalize_citation_case_in_text(original, profiles)
+        ambiguous += paragraph_ambiguous
+        if desired == original:
+            continue
+
+        replacements: list[tuple[Any, str, int]] = []
+        for run in paragraph.runs:
+            replacement, changed_here, _ = _normalize_citation_case_in_text(run.text, profiles)
+            replacements.append((run, replacement, changed_here))
+        if "".join(replacement for _, replacement, _ in replacements) != desired:
+            add_issue(
+                issues,
+                code="citation_case_split_across_runs",
+                paragraph=index + 1,
+                severity="info",
+                auto_fixable=False,
+                message="Foi identificada uma chamada autor-data em caixa alta dividida entre trechos com formatação distinta; ela foi preservada para não perder negrito, itálico, hiperlink ou campo do Word.",
+            )
+            continue
+        run_changes = 0
+        for run, replacement, changed_here in replacements:
+            if replacement != run.text:
+                run.text = replacement
+                run_changes += changed_here
+        changes += run_changes or paragraph_changes
+    return changes, ambiguous
 
 
 def page_field_count(section) -> int:
@@ -567,6 +740,30 @@ def apply_formatting(input_path: Path, output_path: Path, config: ReviewConfig) 
 
     text_start = before["textual_start_paragraph"]
     text_start_index = text_start - 1 if text_start else None
+    if citation_system == "author-date":
+        profiles = _reference_author_profiles(paragraphs, ref_start, ref_end)
+        normalized_citations, ambiguous_citations = _normalize_citation_case_in_paragraphs(
+            paragraphs,
+            text_start_index,
+            ref_start,
+            profiles,
+            format_issues,
+        )
+        if normalized_citations:
+            actions.append({
+                "code": "citation_author_case_normalized",
+                "count": normalized_citations,
+                "message": "Chamadas autor-data de pessoas físicas em caixa alta foram convertidas para maiúsculas/minúsculas, preservando siglas e a lista final de referências.",
+            })
+        if ambiguous_citations:
+            add_issue(
+                format_issues,
+                code="citation_author_case_ambiguous",
+                severity="info",
+                auto_fixable=False,
+                message=f"{ambiguous_citations} chamada(s) curta(s) em caixa alta não foi(ram) alterada(s), pois podem ser siglas ou sobrenomes; confirme manualmente.",
+            )
+
     active_abstract = False
     formatted = {"body": 0, "headings": 0, "references": 0, "abstracts": 0, "long_quotes": 0, "captions": 0, "tables": 0}
     for index, paragraph in enumerate(paragraphs):
