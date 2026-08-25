@@ -1,8 +1,9 @@
 # Revisor ABNT
 
-Aplicativo web inicial que recebe um arquivo `.docx` ou `.doc`, preserva o original e gera
-uma cópia revisada com verificações de apresentação acadêmica, citações, referências, resumo,
-sumário e numeração de seções.
+Aplicativo web que recebe um arquivo `.docx` ou `.doc`, preserva o original e gera uma cópia
+revisada com regras de apresentação acadêmica verificáveis e relatórios separados de ações e
+pendências. O perfil padrão cobre NBR 14724, 6023, 10520, 6028, 6027 e 6024; NBR 6022 é aplicada
+quando o documento é selecionado como artigo científico.
 
 O primeiro componente versionado é a skill em `revisor-abnt-docx/`, com scripts Python para
 auditoria e formatação de documentos Word. Ela será a referência funcional para a API de envio,
@@ -11,7 +12,7 @@ a fila de processamento, a revisão assistida e a entrega segura do arquivo form
 Para executar os scripts localmente, use Python 3.11+ e instale as dependências com
 `python -m pip install -r requirements.txt`.
 
-## Executar o MVP
+## Executar localmente
 
 ```powershell
 python -m venv .venv
@@ -52,15 +53,28 @@ da verificação no domínio.
 - `docs/architecture.md`: limites atuais e evolução necessária antes de operação pública.
 - `docs/product-design.md`: direção visual da interface.
 
+## O que é realmente automatizado
+
+- Página A4, margens, fonte, espaçamento, recuo e alinhamento do corpo textual identificado.
+- Títulos, elementos sem numeração, referências, resumos/abstracts, palavras-chave, tabelas e
+  citações longas já identificáveis na estrutura do Word.
+- Preservação da numeração automática de seções, auditoria de citações autor-data/numéricas,
+  correspondência provável citação–referência e ordenação alfabética apenas de referências
+  autor-data que puderem ser lidas com segurança.
+- Detecção/preservação de campo automático de sumário; inserção de campo TOC somente em um
+  SUMÁRIO vazio; relatório JSON de ações e pendências.
+
 ## Limites do produto
 
 - O aplicativo não deve prometer certificação ABNT automática.
 - O manual da instituição do aluno prevalece sobre regras gerais.
 - Não inventar ou alterar silenciosamente dados de referências e citações.
 - O documento original deve permanecer intacto; a saída é sempre uma nova cópia.
-- A primeira versão aplica correções estruturais e tipográficas verificáveis. Correção textual
-  de citações e metadados bibliográficos depende de fonte comprovada e será uma etapa assistida
-  do produto, não uma inferência automática.
+- Paginação conforme a NBR 14724 depende de quebra de seção antes da parte textual. O produto
+  audita esse requisito, mas não injeta `PAGE` em todos os cabeçalhos, pois isso pode numerar
+  capa e elementos pré-textuais ou reiniciar a contagem.
+- Correção textual de citações e metadados bibliográficos depende de fonte comprovada e é uma
+  etapa assistida, não uma inferência automática.
 
 ## Fontes de apoio
 

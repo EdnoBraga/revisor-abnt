@@ -16,11 +16,12 @@
         <div class="hero-copy">
           <p class="eyebrow">REVISÃO ACADÊMICA · BRASIL</p>
           <h1 id="page-title">Seu TCC merece uma leitura de norma.</h1>
-          <p class="intro">Envie o trabalho em DOCX ou DOC. O Revisor cria uma nova cópia, organiza a apresentação e mostra com transparência o que ainda precisa de validação.</p>
+          <p class="intro">Envie o trabalho em DOCX ou DOC. O Revisor cria uma nova cópia, aplica regras estruturais verificáveis e mostra, no relatório, o que foi alterado e o que ainda precisa de validação humana.</p>
           <p class="hero-note">O arquivo original permanece preservado.</p>
+          <p class="norm-list" aria-label="Escopo de normas: NBR 14724, 6023, 10520, 6028, 6027, 6024 e, para artigos, NBR 6022">NBR 14724 · 6023 · 10520 · 6028 · 6027 · 6024 <span>· 6022 para artigo</span></p>
         </div>
         <div class="norm-wheel" aria-label="Normas verificadas: NBR 14724, 6023, 10520, 6028, 6027, 6024 e 6022">
-          <span class="wheel-top">NBR</span><strong>ABNT</strong><span class="wheel-bottom">14724 · 6023 · 10520</span>
+          <span class="wheel-top">NBR · ABNT</span><strong>ABNT</strong><span class="wheel-bottom">14724 · 6023 · 10520<br />6028 · 6027 · 6024</span>
         </div>
       </section>
 
@@ -33,10 +34,41 @@
             <strong id="file-name">Selecione o arquivo</strong>
             <span>DOCX ou DOC · até 25 MB</span>
           </label>
-          <label class="option">
-            <input name="insert_page_numbers" type="checkbox" />
-            Inserir campos de número de página para conferência no Word
-          </label>
+          <details class="review-options">
+            <summary>Opções de revisão</summary>
+            <div class="option-grid">
+              <label>Tipo de documento
+                <select name="document_type">
+                  <option value="tcc">TCC, monografia, dissertação ou tese</option>
+                  <option value="article">Artigo científico</option>
+                </select>
+              </label>
+              <label>Sistema de citação
+                <select name="citation_system">
+                  <option value="auto">Detectar automaticamente</option>
+                  <option value="author-date">Autor-data</option>
+                  <option value="numeric">Numérico</option>
+                </select>
+              </label>
+              <label>Fonte do texto
+                <select name="font">
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Arial">Arial</option>
+                </select>
+              </label>
+              <label>Sumário
+                <select name="toc_mode">
+                  <option value="audit">Preservar e auditar</option>
+                  <option value="insert-if-empty">Inserir campo automático se estiver vazio</option>
+                </select>
+              </label>
+            </div>
+            <label class="option">
+              <input name="order_references" type="checkbox" checked />
+              Ordenar referências somente quando o sistema autor-data for identificado e todas as entradas puderem ser lidas com segurança.
+            </label>
+            <p class="option-hint">A paginação é auditada. O sistema não insere número de página em todas as seções, pois isso pode numerar capa e elementos pré-textuais ou reiniciar a contagem.</p>
+          </details>
           <label class="option consent">
             <input name="privacy_acknowledged" type="checkbox" required />
             Li como o arquivo será tratado e concordo com a exclusão automática em até 24 horas após a revisão.
@@ -44,7 +76,7 @@
           </label>
           <button id="submit-button" type="submit">Revisar arquivo</button>
         </form>
-        <p class="notice">Referências e citações sem dados verificáveis são sinalizadas no relatório; o sistema não inventa autores, páginas, DOI, URLs ou datas.</p>
+        <p class="notice">Referências e citações sem dados verificáveis são sinalizadas no relatório; o sistema não inventa autores, páginas, DOI, URLs ou datas. O manual da instituição prevalece sobre o perfil geral.</p>
       </section>
 
       <section id="result" class="result" hidden aria-live="polite"></section>
@@ -53,9 +85,9 @@
         <div class="section-number">02</div>
         <div><p class="eyebrow">O QUE ACONTECE DEPOIS</p><h2 id="scope-title">Uma revisão que mostra o caminho.</h2></div>
         <ol>
-          <li><strong>Leitura estrutural</strong><span>Sumário, títulos, citações, referências e elementos do trabalho.</span></li>
-          <li><strong>Nova cópia formatada</strong><span>Margens, fonte, espaçamento e estilos verificáveis são aplicados ao DOCX.</span></li>
-          <li><strong>Relatório objetivo</strong><span>Casos que dependem de fonte original ou manual da faculdade ficam claros para revisão.</span></li>
+          <li><strong>Leitura estrutural</strong><span>Estrutura, títulos, citações, referências, resumo, abstract, sumário e elementos do trabalho.</span></li>
+          <li><strong>Nova cópia formatada</strong><span>Margens, fonte, parágrafos, citações longas identificáveis, referências e estilos estruturais são ajustados.</span></li>
+          <li><strong>Relatório objetivo</strong><span>Ações aplicadas e casos que dependem de fonte original, Word ou manual da faculdade ficam separados.</span></li>
         </ol>
       </section>
     </main>

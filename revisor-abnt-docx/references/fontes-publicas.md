@@ -9,7 +9,7 @@ em um trabalho, compare-a ao manual da instituição do aluno, que sempre preval
 
 | Fonte | Instituição e edição | Cobertura declarada | Uso na skill |
 | --- | --- | --- | --- |
-| [Manual UNIFAL-MG 2025](https://www.unifal-mg.edu.br/bibliotecas/wp-content/uploads/sites/125/2025/05/Manual-de-normalizacao-2-edicao-revista-e-atualizada-12-05-2025.pdf) | Universidade Federal de Alfenas (UNIFAL-MG), 2. ed. rev. e atual., 2025 | NBR 6022:2018, 6023:2018, 6024:2012, 6027:2012, 6028:2021, 10520:2023, 14724:2024 e 15287:2025 | Referência principal para estrutura, apresentação, citações, notas e referências. Aplicar apenas regras compatíveis com o tipo de trabalho e sem contrariar a instituição do aluno. |
+| [Manual UNIFAL-MG 2025](https://www.unifal-mg.edu.br/bibliotecas/wp-content/uploads/sites/125/2025/05/Manual-de-normalizacao-2-edicao-revista-e-atualizada-12-05-2025.pdf) | Universidade Federal de Alfenas (UNIFAL-MG), 2. ed. rev. e atual., 2025 | NBR 6022:2018, 6023:2018, 6024:2012, 6027:2012, 6028:2021, 10520:2023, 14724:2024, 15287:2025, 6034:2004 e 12225:2004 | Referência principal para estrutura, apresentação, citações, notas e referências. Aplicar apenas regras compatíveis com o tipo de trabalho e sem contrariar a instituição do aluno. |
 | [Manual IFRS 2025](https://ifrs.edu.br/vacaria/wp-content/uploads/sites/15/2025/03/Manual-Elaboracao-de-Trabalhos-Academicos.pdf) | Instituto Federal de Educação, Ciência e Tecnologia do Rio Grande do Sul (IFRS), 2025 | Estrutura do trabalho acadêmico, apresentação, citações, referências, resumo, sumário e seção; relaciona as NBRs adotadas | Segunda fonte para conferir a aplicação operacional, sobretudo estrutura, contagem/impressão de paginação e elementos pré/pós-textuais. |
 
 ## Fontes na web para atualização pontual
@@ -17,6 +17,8 @@ em um trabalho, compare-a ao manual da instituição do aluno, que sempre preval
 - UFJ, Biblioteca: [Citações](https://bibliotecas.ufj.edu.br/normalizacao/citacoes/) — página de orientação institucional, útil para conferir alterações divulgadas para citações.
 - UNIFAL-MG, Bibliotecas: [Manual de normalização](https://www.unifal-mg.edu.br/bibliotecas/manual-de-normalizacao/) — página de publicação do manual local acima.
 - IFRS, Campus Vacaria: [Manual para elaboração de trabalhos acadêmicos](https://ifrs.edu.br/vacaria/manual-para-elaboracao-de-trabalhos-academicos/) — página de publicação do manual local acima.
+- ECA/USP, Biblioteca: [Normalização](https://www.eca.usp.br/biblioteca/normalizacao) e [atualizações de 2025 da NBR 6023](https://www.eca.usp.br/sites/default/files/2025-06/NBR%206023_2025.pdf) — fonte institucional para manter a camada de referências atualizada; usar junto ao manual do curso.
+- Faculdade de Farmácia/UFMG: [Diretrizes para normalização de trabalhos acadêmicos, 2024](https://www.farmacia.ufmg.br/wp-content/uploads/2024/07/Diretrizes-para-Normalizacao-de-Trabalhos-Academicos-na-FAFAR-UFMG.pdf) — contrachecagem institucional de citações, referências e apresentação.
 
 ## Limites obrigatórios
 

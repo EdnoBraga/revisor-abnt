@@ -19,10 +19,13 @@ async function poll(statusUrl) {
   const job = await response.json();
   if (!response.ok) throw new Error(job.detail || "Não foi possível consultar a revisão.");
   if (job.status === "completed") {
+    const summary = job.review_summary || {};
+    const actionText = Number.isFinite(summary.actions_applied) ? `${summary.actions_applied} grupo(s) de ação aplicado(s)` : "ações registradas no relatório";
+    const issueText = Number.isFinite(summary.issues_remaining) ? `${summary.issues_remaining} ponto(s) para validação` : "pendências identificadas";
     showResult(`
       <h2>Revisão concluída</h2>
-      <p>Baixe o novo DOCX e o relatório. Abra o arquivo no Word para atualizar os campos do sumário e conferir a paginação.</p>
-      <p><a class="button-link" href="${job.download_url}">Baixar DOCX revisado</a><a class="text-link" href="${job.audit_url}">Baixar relatório</a></p>
+      <p>${actionText}; ${issueText}. Baixe a nova cópia e confira o relatório antes da entrega.</p>
+      <p><a class="button-link" href="${job.download_url}">Baixar DOCX revisado</a><a class="text-link" href="${job.format_report_url}">Baixar relatório da revisão</a><a class="text-link" href="${job.audit_url}">Baixar auditoria original</a></p>
     `, "success");
     submitButton.disabled = false;
     submitButton.textContent = "Revisar outro arquivo";

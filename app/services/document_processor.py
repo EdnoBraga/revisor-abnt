@@ -173,7 +173,16 @@ def _run(command: list[str], label: str) -> None:
         raise ProcessingError(f"Falha durante {label}: {details[-1] if details else 'erro interno'}")
 
 
-def process_job(job_id: str, *, insert_page_numbers: bool = False) -> None:
+def process_job(
+    job_id: str,
+    *,
+    document_type: str = "tcc",
+    citation_system: str = "auto",
+    font: str = "Times New Roman",
+    toc_mode: str = "audit",
+    pagination_mode: str = "audit",
+    order_references: bool = True,
+) -> None:
     """Executa a revisão em diretório próprio; nunca modifica o arquivo original."""
     try:
         job = update_job(job_id, status="processing", error=None)
@@ -185,19 +194,44 @@ def process_job(job_id: str, *, insert_page_numbers: bool = False) -> None:
 
         audit_path = job_dir / "relatorio-auditoria.json"
         output_path = job_dir / "trabalho-revisado-abnt.docx"
-        _run([sys.executable, str(AUDIT_SCRIPT), str(input_docx), "--out", str(audit_path)], "a auditoria")
-        format_command = [sys.executable, str(FORMAT_SCRIPT), str(input_docx), "--out", str(output_path)]
-        if insert_page_numbers:
-            format_command.append("--page-numbers")
+        _run(
+            [
+                sys.executable, str(AUDIT_SCRIPT), str(input_docx), "--out", str(audit_path),
+                "--document-type", document_type, "--citation-system", citation_system,
+            ],
+            "a auditoria",
+        )
+        format_command = [
+            sys.executable, str(FORMAT_SCRIPT), str(input_docx), "--out", str(output_path),
+            "--document-type", document_type, "--citation-system", citation_system,
+            "--font", font, "--toc-mode", toc_mode, "--pagination-mode", pagination_mode,
+        ]
+        if not order_references:
+            format_command.append("--do-not-order-references")
         _run(format_command, "a formatação")
         format_report = output_path.with_name(f"{output_path.stem}_abnt_report.json")
+        review_summary = None
+        if format_report.is_file():
+            report_data = json.loads(format_report.read_text(encoding="utf-8"))
+            review_summary = {
+                "actions_applied": len(report_data.get("actions_applied", [])),
+                "issues_remaining": len(report_data.get("issues_remaining", [])),
+            }
         update_job(
             job_id,
             status="completed",
             output_filename="trabalho-revisado-abnt.docx",
             audit_filename=audit_path.name,
             format_report_filename=format_report.name if format_report.is_file() else None,
-            page_number_fields_requested=insert_page_numbers,
+            review_options={
+                "document_type": document_type,
+                "citation_system": citation_system,
+                "font": font,
+                "toc_mode": toc_mode,
+                "pagination_mode": pagination_mode,
+                "order_references": order_references,
+            },
+            review_summary=review_summary,
         )
     except ProcessingError as exc:
         update_job(job_id, status="failed", error=str(exc))

@@ -1,28 +1,34 @@
-# ABNT review rules
+# Checklist operacional do Revisor ABNT
 
-## Normative coverage
+Aplicar este checklist somente depois de identificar o tipo do documento e, se existir, o manual institucional.
 
-Apply this reference only when the user did not provide a more specific institutional manual or template.
+## Correções automáticas permitidas
 
-- NBR 6023: references contain only sources cited/used. Present entries consistently in one ordered list, aligned left, single-spaced within each entry, with separation between entries. Preserve the source-language capitalization and any verified edition, place, publisher, date, DOI, URL, and access date information.
-- NBR 10520: use author-date citations consistently. Direct quotations require author, year, and page/locator. Short direct quotations stay in the paragraph with quotation marks. Long direct quotations use a distinct indented block, smaller font, single spacing, and no quotation marks. A quotation in another quotation uses single quotation marks.
-- NBR 6028: verify the presentation of resumo and abstract, including title, paragraph form, keywords, and the institutional length rule. Do not infer a translation or revise substantive content automatically.
-- NBR 6027: verify that the sumario is field-based or otherwise traceable to the actual heading structure. Do not manually type or guess page numbers.
-- NBR 6024: verify the logical hierarchy and progressive numbering of sections and subsections. Use real heading styles when format normalization is safe; do not alter meaningful cross-references without confirmation.
-- NBR 6022: when the document is a scientific article, verify its article-specific presentation, including title, author information supplied by the user, abstracts, keywords, textual sections, and references. Do not apply TCC-only front matter or cover elements to an article.
-- NBR 14724: verify the general structure and presentation of pre-textual, textual, and post-textual elements. Use A4 pages; 3 cm top and left margins; 2 cm right and bottom margins. For ordinary text use 12 pt font, 1.5 line spacing, justified paragraphs, and a 1.25 cm first-line indent. Major section headings start on a new page only when the institutional manual requires it.
+1. Normalizar página A4 e margens de 3 cm (superior/esquerda) e 2 cm (direita/inferior) nas seções existentes.
+2. Na parte textual identificada, aplicar fonte 12, justificação, entrelinhas 1,5 e recuo de primeira linha de 1,25 cm, preservando negrito, itálico, hiperlinks, campos e texto do usuário.
+3. Em títulos identificados, retirar recuos e preservar a numeração literal ou automática do Word. Nunca remover `numPr` nem alterar a sequência de níveis sem confirmação.
+4. Em citações longas já marcadas por estilo próprio ou recuo de 4 cm, aplicar fonte 10, espaço simples, recuo de 4 cm e sem primeira linha.
+5. Em resumo/abstract e palavras-chave identificados, aplicar espaço simples e sem primeira linha; não modificar conteúdo ou idioma.
+6. Em referências identificadas, aplicar margem esquerda, espaço simples, sem recuo de primeira linha e separação entre entradas. Reordenar somente lista autor-data quando todas as chaves autor/ano forem lidas com segurança e não houver duplicidade.
+7. Preservar um campo TOC existente e solicitar atualização no Word. Inserir campo TOC apenas em título SUMÁRIO vazio. Nunca escrever números de página manualmente.
 
-## Review decisions
+## Achados que devem ser relatados, não inventados
 
-1. Prefer a supplied institutional manual whenever it specifies a conflicting font, cover, pagination start, heading format, abstract, figure, table, or reference rule.
-2. Treat missing author, year, page, edition, publisher, URL, access date, DOI, or title as an evidence gap. Report it; do not infer it from a search result without authorization.
-3. Keep author/date citations and reference-list keys consistent. Flag likely mismatches, duplicate entries, quotation marks without a locator, and a references heading with no entries.
-4. Check whether resumo, abstract, and keywords are present when expected. Report missing content instead of generating it.
-5. Check whether headings in the document, section numbers, and sumario entries represent the same hierarchy. Report stale fields or static page numbers.
-6. Do not convert a textual paragraph to a long quotation merely because it has quotation marks. Confirm the quotation extent and source locator first.
+- Citação direta entre aspas sem página/localizador visível.
+- Citação autor-data sem referência correspondente aparente e referência sem citação correspondente aparente.
+- Referência cuja entrada de autoria/entidade ou ano não foi interpretada.
+- Ausência ou duplicidade de resumo, abstract, sumário ou referências, conforme o tipo de trabalho.
+- Sumário estático sem campo do Word; título textual inferido; numeração automática de seções; ausência de campo PAGE.
+- Bloco possivelmente longo que não pode ser identificado por linhas renderizadas.
+- Desuniformidade de destaque tipográfico nas referências. A ferramenta não troca automaticamente negrito e itálico de títulos sem reconhecer com segurança o tipo da fonte e o manual aplicável.
 
-## Limits of automation
+## Paginação
 
-- Automated checks cannot decide whether a paraphrase is faithful, whether a quotation is exact, whether an online source is authoritative, or whether each entry has every mandatory element for its specific source type.
-- Tables, figures, appendices, abstracts, cover sheets, catalog cards, errata, field-based sumarios, and section-dependent pagination must be inspected in context.
-- The user or institution must validate final compliance before submission.
+- As folhas são contadas a partir da folha de rosto, mas o número aparece a partir da primeira folha textual, normalmente a INTRODUÇÃO, no canto superior direito, com fonte 10.
+- Só criar campos PAGE quando a estrutura de seções já demonstrar que o cabeçalho textual é distinto do pré-textual e a contagem será contínua. Caso contrário, informar o ajuste a fazer no Word; adicionar PAGE no cabeçalho de todas as seções é uma correção incorreta.
+
+## Verificação de entrega
+
+1. Abrir o DOCX revisado no Word ou LibreOffice e atualizar campos.
+2. Renderizar e conferir visualmente margens, capa, folha de rosto, sumário, início da INTRODUÇÃO, citações longas, referências, tabelas, figuras, anexos e últimas páginas.
+3. Consultar as fontes originais para citações e referências antes de afirmar conformidade.

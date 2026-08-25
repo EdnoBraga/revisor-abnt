@@ -1,6 +1,6 @@
 ---
 name: revisor-abnt-docx
-description: Review and format an existing Brazilian academic DOCX/TCC according to ABNT NBR 14724, 6023, 10520, 6028, 6027, 6024, and 6022, preserving its content and returning a separate formatted copy. Use for DOCX TCC, monograph, dissertation, thesis, or academic article formatting; not for inventing citations or bibliographic data.
+description: Review and format an existing Brazilian academic DOCX/TCC according to ABNT NBR 14724:2024, NBR 6023 (2018 plus public 2025 updates), NBR 10520:2023, NBR 6028:2021, NBR 6027:2012, NBR 6024:2012, and NBR 6022:2018, preserving content and returning a separate formatted copy. Use for DOCX TCC, monograph, dissertation, thesis, or academic article formatting; not for inventing citations or bibliographic data.
 ---
 
 # Revisor ABNT DOCX
@@ -9,7 +9,7 @@ Use this skill when the user provides an existing Word document and asks for an 
 
 ## Normative scope and precedence
 
-- Use the current editions supplied or explicitly required by the user. The baseline is ABNT NBR 14724 (academic work presentation), NBR 6023 (references), NBR 10520 (citations), NBR 6028 (abstracts), NBR 6027 (table of contents), NBR 6024 (progressive section numbering), and NBR 6022 (scientific article presentation).
+- Use the current editions supplied or explicitly required by the user. The default profile is NBR 14724:2024 (academic work presentation), NBR 6023:2018 with public 2025 updates (references), NBR 10520:2023 (citations), NBR 6028:2021 (abstracts), NBR 6027:2012 (table of contents), NBR 6024:2012 (progressive section numbering), and NBR 6022:2018 (scientific article presentation).
 - The operational baseline comes from [references/normas-abnt.md](references/normas-abnt.md) and the public institutional manuals indexed in [references/fontes-publicas.md](references/fontes-publicas.md). They are secondary support materials, not the paid ABNT standards. The full standard texts were neither copied nor downloaded; when a rule is ambiguous or absent, report it instead of guessing.
 - An institutional manual, template, or course rule supplied by the user takes precedence over this baseline. Identify and follow it before applying automated changes.
 - Do not claim certification or absolute compliance: a DOCX cannot establish source accuracy, authorship, originality, or every special reference case automatically.
@@ -19,7 +19,7 @@ Use this skill when the user provides an existing Word document and asks for an 
 
 1. Inspect the input DOCX, all supplied institutional instructions, and the existing section/layout structure. Determine whether it has the required pre-textual, textual, and post-textual elements; an abstract/abstract in another language; a table of contents; and a coherent section-numbering hierarchy.
 2. Preserve the original. Run `scripts/audit_docx_abnt.py` first and keep its JSON report with the work files.
-3. Run `scripts/format_docx_abnt.py INPUT.docx --out OUTPUT_ABNT.docx`. Use `--page-numbers` only when the user asks for footer page numbering or the document structure confirms it is safe. By default, body-paragraph formatting (justify, 1.25 cm first-line indent, 1.5 spacing) only starts at the first real Heading-style paragraph (normally "INTRODUÇÃO"), so cover, folha de rosto, dedicatória, and epígrafe keep their own centered/declaration formatting untouched; pass `--format-from-document-start` only for a document with no heading styles at all, and verify the cover page after using it. The formatter applies safe layout normalization and produces a report; it deliberately does not fabricate citations or reference entries.
+3. Run `scripts/format_docx_abnt.py INPUT.docx --out OUTPUT_ABNT.docx`. The body formatting starts only when the textual part is identified (normally `INTRODUÇÃO`); cover, folha de rosto, dedicatória and epígrafe therefore keep their own formatting. The formatter applies safe layout normalization, preserves Word automatic numbering, produces an action/issue report and deliberately does not fabricate citations or reference entries. Do not request automatic page-number insertion unless the document already has a confirmed section break before the textual part.
 4. Review citations, references, abstracts, table of contents, and section numbering using [references/normas-abnt.md](references/normas-abnt.md) (operational baseline), [references/fontes-publicas.md](references/fontes-publicas.md) (source scope and limits), and [references/abnt-review-rules.md](references/abnt-review-rules.md) (checklist). Correct only information demonstrably supported by the document or user-provided sources. For unresolved cases, add a concise review report instead of guessing.
 5. Update the table of contents fields in Word after formatting. Do not type static page numbers or claim that automated rendering updated them.
 6. Render the final DOCX to page images with the documents renderer and inspect every page. Fix visible defects, then render again. Retain the original and deliver only the final DOCX unless the user asks for the report too.
