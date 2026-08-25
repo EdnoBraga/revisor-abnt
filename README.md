@@ -34,6 +34,16 @@ docker build -t revisor-abnt .
 docker run --rm -p 8000:8000 -v ${PWD}/data:/var/lib/revisor-abnt revisor-abnt
 ```
 
+## Publicar em host próprio
+
+O repositório inclui `docker-compose.yml` e Caddy para expor o aplicativo com HTTPS automático.
+O guia de implantação em VPS está em [`docs/deploy-vps.md`](docs/deploy-vps.md). Antes de abrir ao
+público, configure domínio, e-mail de certificado, canal de privacidade, retenção de arquivos e
+as medidas de segurança indicadas no guia.
+
+Use também o [`docs/deploy-checklist.md`](docs/deploy-checklist.md) no momento da publicação e
+da verificação no domínio.
+
 ## Estrutura do produto
 
 - `app/`: interface e API FastAPI do MVP.

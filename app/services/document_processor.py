@@ -32,6 +32,35 @@ def _jobs_root() -> Path:
     return root
 
 
+def _retention_hours() -> int:
+    """Return a bounded retention period so uploaded files cannot accumulate forever."""
+    try:
+        value = int(os.getenv("REVISOR_ABNT_RETENTION_HOURS", "24"))
+    except ValueError:
+        value = 24
+    return min(max(value, 1), 168)
+
+
+def cleanup_expired_jobs() -> int:
+    """Remove only completed/failed jobs created by this app after the retention window."""
+    threshold = datetime.now(UTC).timestamp() - (_retention_hours() * 3600)
+    removed = 0
+    for candidate in _jobs_root().iterdir():
+        if not candidate.is_dir():
+            continue
+        try:
+            uuid.UUID(candidate.name)
+            job_path = candidate / "job.json"
+            job = json.loads(job_path.read_text(encoding="utf-8"))
+            created_at = datetime.fromisoformat(job["created_at"]).timestamp()
+        except (OSError, ValueError, KeyError, json.JSONDecodeError):
+            continue
+        if job.get("status") in {"completed", "failed"} and created_at < threshold:
+            shutil.rmtree(candidate, ignore_errors=True)
+            removed += 1
+    return removed
+
+
 def _job_dir(job_id: str) -> Path:
     try:
         normalized = str(uuid.UUID(job_id))
@@ -76,6 +105,7 @@ async def create_job_from_upload(upload) -> dict[str, Any]:
     if extension not in ALLOWED_EXTENSIONS:
         raise ProcessingError("Envie um arquivo .docx ou .doc.")
 
+    cleanup_expired_jobs()
     job_id = str(uuid.uuid4())
     job_dir = _job_dir(job_id)
     job_dir.mkdir(parents=True, exist_ok=False)

@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.services.document_processor import (
     ProcessingError,
     create_job_from_upload,
+    cleanup_expired_jobs,
     get_job,
     job_file,
     process_job,
@@ -38,9 +39,14 @@ def home() -> FileResponse:
     return FileResponse(APP_ROOT / "static" / "index.html")
 
 
+@app.get("/privacidade", include_in_schema=False)
+def privacy() -> FileResponse:
+    return FileResponse(APP_ROOT / "static" / "privacy.html")
+
+
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok"}
+    return {"status": "ok", "expired_jobs_removed": cleanup_expired_jobs()}
 
 
 @app.post("/api/revisions", status_code=status.HTTP_202_ACCEPTED)
@@ -48,7 +54,13 @@ async def create_revision(
     background_tasks: BackgroundTasks,
     document: UploadFile = File(description="Arquivo DOCX ou DOC de até 25 MB"),
     insert_page_numbers: bool = Form(False),
+    privacy_acknowledged: bool = Form(...),
 ) -> dict:
+    if not privacy_acknowledged:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Confirme a leitura do tratamento de documentos para continuar.",
+        )
     try:
         job = await create_job_from_upload(document)
     except ProcessingError as exc:

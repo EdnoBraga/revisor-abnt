@@ -1,0 +1,33 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      REVISOR_ABNT_JOBS_DIR: /var/lib/revisor-abnt/jobs
+      REVISOR_ABNT_RETENTION_HOURS: ${REVISOR_ABNT_RETENTION_HOURS:-24}
+      SOFFICE_BIN: soffice
+    volumes:
+      - revisor_abnt_data:/var/lib/revisor-abnt
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Defina APP_DOMAIN no arquivo .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Defina ACME_EMAIL no arquivo .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  revisor_abnt_data:
+  caddy_data:
+  caddy_config:

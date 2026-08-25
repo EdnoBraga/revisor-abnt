@@ -20,7 +20,16 @@ def sample_docx() -> bytes:
 
 def test_health():
     client = TestClient(app)
-    assert client.get("/api/health").json() == {"status": "ok"}
+    assert client.get("/api/health").json()["status"] == "ok"
+
+
+def test_revision_requires_privacy_acknowledgement():
+    client = TestClient(app)
+    response = client.post(
+        "/api/revisions",
+        files={"document": ("tcc.docx", sample_docx(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert response.status_code == 422
 
 
 def test_docx_revision_creates_downloadable_copy(tmp_path, monkeypatch):
@@ -29,7 +38,7 @@ def test_docx_revision_creates_downloadable_copy(tmp_path, monkeypatch):
     response = client.post(
         "/api/revisions",
         files={"document": ("tcc.docx", sample_docx(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
-        data={"insert_page_numbers": "false"},
+        data={"insert_page_numbers": "false", "privacy_acknowledged": "true"},
     )
     assert response.status_code == 202
     job = client.get(response.json()["status_url"]).json()

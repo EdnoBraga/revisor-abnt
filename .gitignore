@@ -6,3 +6,6 @@ revisor-abnt-docx/references/fontes-publicas/*.pdf
 .venv/
 data/
 .env
+.pytest_cache/
+.test-tmp/
+.docker-config/
