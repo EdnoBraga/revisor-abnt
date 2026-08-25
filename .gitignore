@@ -3,3 +3,6 @@ __pycache__/
 *.docx
 *_abnt_report.json
 revisor-abnt-docx/references/fontes-publicas/*.pdf
+.venv/
+data/
+.env

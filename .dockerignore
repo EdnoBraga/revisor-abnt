@@ -1,0 +1,7 @@
+.git
+.venv
+data
+tests
+*.doc
+*.docx
+__pycache__

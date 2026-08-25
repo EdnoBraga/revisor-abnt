@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Revisor ABNT</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Página inicial do Revisor ABNT"><span>Revisor</span>ABNT<sup>β</sup></a>
+      <p>formato não é detalhe</p>
+    </header>
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <p class="eyebrow">REVISÃO ACADÊMICA · BRASIL</p>
+          <h1 id="page-title">Seu TCC merece uma leitura de norma.</h1>
+          <p class="intro">Envie o trabalho em DOCX ou DOC. O Revisor cria uma nova cópia, organiza a apresentação e mostra com transparência o que ainda precisa de validação.</p>
+          <p class="hero-note">O arquivo original permanece preservado.</p>
+        </div>
+        <div class="norm-wheel" aria-label="Normas verificadas: NBR 14724, 6023, 10520, 6028, 6027, 6024 e 6022">
+          <span class="wheel-top">NBR</span><strong>ABNT</strong><span class="wheel-bottom">14724 · 6023 · 10520</span>
+        </div>
+      </section>
+
+      <section class="upload-card" aria-labelledby="upload-title">
+        <div class="section-number">01</div>
+        <div class="upload-heading"><p class="eyebrow">COMECE AQUI</p><h2 id="upload-title">Envie seu trabalho</h2></div>
+        <form id="revision-form">
+          <label class="dropzone" for="document">
+            <input id="document" name="document" type="file" accept=".doc,.docx" required />
+            <strong id="file-name">Selecione o arquivo</strong>
+            <span>DOCX ou DOC · até 25 MB</span>
+          </label>
+          <label class="option">
+            <input name="insert_page_numbers" type="checkbox" />
+            Inserir campos de número de página para conferência no Word
+          </label>
+          <button id="submit-button" type="submit">Revisar arquivo</button>
+        </form>
+        <p class="notice">Referências e citações sem dados verificáveis são sinalizadas no relatório; o sistema não inventa autores, páginas, DOI, URLs ou datas.</p>
+      </section>
+
+      <section id="result" class="result" hidden aria-live="polite"></section>
+
+      <section class="scope" aria-labelledby="scope-title">
+        <div class="section-number">02</div>
+        <div><p class="eyebrow">O QUE ACONTECE DEPOIS</p><h2 id="scope-title">Uma revisão que mostra o caminho.</h2></div>
+        <ol>
+          <li><strong>Leitura estrutural</strong><span>Sumário, títulos, citações, referências e elementos do trabalho.</span></li>
+          <li><strong>Nova cópia formatada</strong><span>Margens, fonte, espaçamento e estilos verificáveis são aplicados ao DOCX.</span></li>
+          <li><strong>Relatório objetivo</strong><span>Casos que dependem de fonte original ou manual da faculdade ficam claros para revisão.</span></li>
+        </ol>
+      </section>
+    </main>
+    <footer><span>REVISOR ABNT</span><span>uma ferramenta de apoio · não certifica conformidade</span></footer>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
