@@ -31,9 +31,23 @@ aceitar `.doc`, instale o LibreOffice no servidor e deixe o comando `soffice` di
 O `Dockerfile` inclui LibreOffice Writer para conversão de `.doc` e pode ser usado assim:
 
 ```powershell
-docker build -t revisor-abnt .
+docker build --build-arg GIT_COMMIT=$(git rev-parse --short HEAD) -t revisor-abnt .
 docker run --rm -p 8000:8000 -v ${PWD}/data:/var/lib/revisor-abnt revisor-abnt
 ```
+
+Com `docker-compose`, defina `GIT_COMMIT` no ambiente antes do build (ou em `.env`)
+para que a imagem carregue o commit correto:
+
+```powershell
+$env:GIT_COMMIT = (git rev-parse --short HEAD)
+docker-compose up --build
+```
+
+**Importante:** depois de qualquer alteração no motor (`revisor-abnt-docx/scripts/`) ou no
+app, é preciso reconstruir a imagem (`--build`) ou reiniciar o `uvicorn --reload`. Um
+container antigo não pega o código novo sozinho. Para confirmar qual versão está no ar,
+consulte `GET /api/health` — o campo `version` traz o commit com que a imagem foi
+construída (`dev` quando `GIT_COMMIT` não foi informado).
 
 ## Publicar em host próprio
 
@@ -75,6 +89,26 @@ da verificação no domínio.
   capa e elementos pré-textuais ou reiniciar a contagem.
 - Correção textual de citações e metadados bibliográficos depende de fonte comprovada e é uma
   etapa assistida, não uma inferência automática.
+
+## Perfil institucional
+
+Além do perfil geral ABNT, o motor aceita um perfil `cgaem`, com as particularidades do
+roteiro do CGAEM/ESFCEx para artigo científico (sem sumário separado, resumo/abstract logo
+após a folha de rosto, entre outras). Selecione "CGAEM/ESFCEx" nas opções de revisão da
+interface, ou passe `--institution cgaem` ao rodar os scripts diretamente. Detalhes em
+[`revisor-abnt-docx/references/perfil-cgaem.md`](revisor-abnt-docx/references/perfil-cgaem.md).
+
+## Testes
+
+```powershell
+python -m pip install -r requirements.txt pytest
+pytest
+```
+
+`tests/test_abnt_engine.py` roda o motor sobre documentos DOCX sintéticos e falha se a
+formatação parar de ser aplicada de fato — é a rede de segurança que teria detectado, antes
+da implantação, o problema em que o servidor rodava uma versão antiga do motor. Um workflow
+de CI (`.github/workflows/tests.yml`) executa essa suíte a cada push e pull request.
 
 ## Fontes de apoio
 

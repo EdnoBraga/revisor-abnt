@@ -44,6 +44,17 @@ PARENTHETICAL_AUTHOR_YEAR_RE = re.compile(
 NARRATIVE_AUTHOR_YEAR_RE = re.compile(
     r"\b(?P<authors>[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý'’.-]*(?:\s+(?:[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý'’.-]*|E|DA|DAS|DE|DO|DOS))*?(?:\s+ET\s+AL\.)?)\s*\(\s*(?P<year>(?:1[5-9]|20)\d{2}[a-z]?)\b"
 )
+# Citação indireta (NBR 10520): "SOBRENOME-ORIGINAL apud SOBRENOME-CITANTE, ano".
+# O nome logo depois de "apud" segue o mesmo padrão autor-vírgula-ano das
+# citações comuns; o nome logo antes de "apud" não tem ano adjacente (o ano
+# citado é sempre o da obra consultada diretamente), por isso é tratado à
+# parte, exigindo apenas que seja uma sequência de palavras em caixa alta.
+APUD_CITING_AUTHOR_RE = re.compile(
+    r"(?P<apud>(?i:apud))(?P<sep>\s+)(?P<authors>[^,()]{2,100}?)\s*,\s*(?P<year>(?:1[5-9]|20)\d{2}[a-z]?)\b"
+)
+APUD_ORIGINAL_AUTHOR_RE = re.compile(
+    r"\b(?P<authors>[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý'’.-]*(?:\s+(?:[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý'’.-]*|E|DA|DAS|DE|DO|DOS))*?)(?P<sep>\s+)(?P<apud>(?i:apud))\b"
+)
 NAME_PARTICLES = {"da", "das", "de", "do", "dos", "e"}
 # Siglas são uma exceção à forma "Maiúscula/minúscula" da NBR 10520:2023.
 # A lista reduz falsos positivos quando a referência ainda não permite identificar
@@ -52,6 +63,27 @@ KNOWN_INITIALISMS = {
     "ABNT", "ANEEL", "ANVISA", "CAPES", "CGU", "CNPQ", "IBAMA", "IBGE", "IPEA",
     "MEC", "OCDE", "OIT", "OMS", "ONU", "STF", "STJ", "TCU", "UNESCO", "UNICEF",
 }
+# Destaque tipográfico do título em referências (NBR 6023): não há uma regra fixa
+# universal, mas o manual institucional do CGAEM/ESFCEx usado como referência
+# aplica negrito de forma consistente ao título de livros/monografias, ao número
+# de normas NBR e ao nome de instrumentos legais. As expressões abaixo só
+# reconhecem esses casos concretos e devolvem None (sem alterar nada) sempre que
+# o formato da entrada foge do que foi validado nos exemplos do manual —
+# preferindo deixar uma entrada sem negrito automático a arriscar negritar o
+# trecho errado.
+AUTHOR_BLOCK_RE = re.compile(
+    r"^\s*(?:[A-ZÀ-Ý][A-Za-zÀ-ÿ'’\-]*(?:\s+[A-Za-zÀ-ÿ'’\-]+)*\s*,\s*[^;.]+?(?:;\s*)?)+\.\s+"
+)
+LEGAL_INSTRUMENT_RE = re.compile(
+    r"(Decreto(?:-Lei)?|Lei\s+Complementar|Lei|Portaria|Resolu[çc][ãa]o|Instru[çc][ãa]o\s+Normativa|"
+    r"Medida\s+Provis[óo]ria|Emenda\s+Constitucional|Decreto\s+Legislativo)\s+n[ºo°]?\s*[\d.\/-]+"
+    r"(?:,\s*de\s+\d{1,2}\s+de\s+[a-zà-ú]+\s+de\s+\d{4})?",
+    re.IGNORECASE,
+)
+NBR_STANDARD_RE = re.compile(r"ASSOCIA[ÇC][ÃA]O BRASILEIRA DE NORMAS T[ÉE]CNICAS\.\s+(NBR\s*[\d.\-]+)", re.IGNORECASE)
+PERIODICAL_MARKER_RE = re.compile(r",\s*v\.\s*\d+|,\s*n\.\s*\d+")
+TAIL_PLACE_PUBLISHER_YEAR_RE = re.compile(r":\s*([^,:]{2,100}),\s*(?:19|20)\d{2}[a-z]?\.?\s*$")
+TITLE_BOUNDARY_RE = re.compile(r"[.?!](?=\s)")
 
 
 @dataclass(frozen=True)
@@ -62,6 +94,7 @@ class ReviewConfig:
     toc_mode: str = "audit"
     pagination_mode: str = "audit"
     order_references: bool = True
+    institution: str = "generic"
 
 
 def normalized(text: str) -> str:
@@ -302,6 +335,31 @@ def _normalize_citation_case_in_text(text: str, profiles: dict[str, set[str]]) -
         return f"{authors} ({match.group('year')}"
 
     normalized_text = NARRATIVE_AUTHOR_YEAR_RE.sub(replace_narrative, normalized_text)
+
+    # Citação indireta (apud): "SOBRENOME-ORIGINAL apud SOBRENOME-CITANTE, ano"
+    # (ou dentro de parênteses). As duas passagens acima não alcançam nenhum
+    # dos dois nomes nesse formato -- a primeira porque a palavra "apud"
+    # quebra o teste all-caps do bloco de autoria, a segunda porque o autor
+    # original não fica imediatamente antes de "(ano)". Tratamos os dois
+    # lados separadamente, aplicando a mesma regra de maiúscula/minúscula e a
+    # mesma cautela para sobrenomes curtos não confirmados na lista final.
+    def replace_apud_citing(match: re.Match[str]) -> str:
+        nonlocal changes, ambiguous
+        authors, changed_here, ambiguous_here = _format_citation_author_expression(match.group("authors"), profiles)
+        changes += changed_here
+        ambiguous += ambiguous_here
+        return f"{match.group('apud')}{match.group('sep')}{authors}, {match.group('year')}"
+
+    normalized_text = APUD_CITING_AUTHOR_RE.sub(replace_apud_citing, normalized_text)
+
+    def replace_apud_original(match: re.Match[str]) -> str:
+        nonlocal changes, ambiguous
+        authors, changed_here, ambiguous_here = _format_citation_author_expression(match.group("authors"), profiles)
+        changes += changed_here
+        ambiguous += ambiguous_here
+        return f"{authors}{match.group('sep')}{match.group('apud')}"
+
+    normalized_text = APUD_ORIGINAL_AUTHOR_RE.sub(replace_apud_original, normalized_text)
     return normalized_text, changes, ambiguous
 
 
@@ -386,6 +444,12 @@ def insert_after(paragraph: Paragraph) -> Paragraph:
     return Paragraph(new_element, paragraph._parent)
 
 
+def insert_before(paragraph: Paragraph) -> Paragraph:
+    new_element = OxmlElement("w:p")
+    paragraph._p.addprevious(new_element)
+    return Paragraph(new_element, paragraph._parent)
+
+
 def _reference_bounds(paragraphs: list[Paragraph]) -> tuple[int | None, int | None]:
     start = next((index for index, p in enumerate(paragraphs) if is_reference_heading(p.text)), None)
     if start is None:
@@ -404,6 +468,18 @@ def _textual_start(paragraphs: list[Paragraph]) -> tuple[int | None, str]:
         for index in range(sumario_index + 1, len(paragraphs)):
             if heading_level(paragraphs[index]) is not None:
                 return index, "heading_after_toc"
+    # Fallback conservador: sem SUMARIO e sem titulo literal de abertura (por
+    # exemplo, capitulos nomeados pelo tema em vez de "INTRODUCAO"), usa o
+    # primeiro titulo com estilo Heading ou numeracao progressiva real como
+    # inicio do texto. Elementos de capa, folha de rosto e resumo/abstract
+    # normalmente nao usam esse estilo, entao o risco de falso positivo e
+    # baixo; a origem "heading_fallback" fica registrada para conferencia.
+    for index, paragraph in enumerate(paragraphs):
+        title = normalized(paragraph.text)
+        if title in UNNUMBERED_HEADINGS:
+            continue
+        if heading_level(paragraph) is not None:
+            return index, "heading_fallback"
     return None, "not_found"
 
 
@@ -447,6 +523,24 @@ def _abstract_blocks(paragraphs: list[Paragraph]) -> list[dict[str, Any]]:
             "keywords_paragraph": keyword_paragraph,
         })
     return blocks
+
+
+def _manual_validation_notes(config: ReviewConfig) -> list[str]:
+    notes = [
+        "Confirme o manual/template da instituição, que prevalece sobre o perfil geral.",
+        "Confirme cada citação direta contra a fonte original e seu localizador.",
+        "Confirme a exatidão de autor, título, edição, local, editora, DOI, URL e data de acesso das referências.",
+        "Abra o arquivo no Word e atualize campos (sumário, paginação e referências cruzadas) antes da entrega.",
+        "Revise visualmente tabelas, ilustrações, notas, cabeçalhos, quebras de seção e elementos pré-textuais.",
+    ]
+    if config.institution == "cgaem":
+        notes.append(
+            "Perfil CGAEM/ESFCEx selecionado: confira também as particularidades do roteiro institucional em "
+            "references/perfil-cgaem.md (estrutura sem sumário separado, resumo/abstract logo após a folha de "
+            "rosto, extensão mínima/máxima em páginas e demais observações que não são verificáveis apenas pela "
+            "estrutura do DOCX)."
+        )
+    return notes
 
 
 def scan_document(doc: Document, config: ReviewConfig) -> dict[str, Any]:
@@ -498,12 +592,16 @@ def scan_document(doc: Document, config: ReviewConfig) -> dict[str, Any]:
     citation_system = _detect_citation_system(paragraphs, config.citation_system)
     abstract_blocks = _abstract_blocks(paragraphs)
 
+    required_elements = [("resumo", "Resumo"), ("referencias", "Referências")]
     if config.document_type == "tcc":
-        for element, label in (("resumo", "Resumo"), ("sumario", "Sumário"), ("referencias", "Referências")):
-            if not elements[element]:
-                add_issue(issues, code=f"missing_{element}", severity="warning", message=f"{label} não foi identificado pela estrutura do DOCX. Confirme se está ausente ou se utiliza um título fora do padrão.")
-        if not elements["abstract"]:
-            add_issue(issues, code="missing_abstract", severity="info", message="Abstract/resumo em língua estrangeira não foi identificado. Confirme a exigência do curso antes de incluí-lo.")
+        required_elements.append(("sumario", "Sumário"))
+    for element, label in required_elements:
+        if not elements[element]:
+            add_issue(issues, code=f"missing_{element}", severity="warning", message=f"{label} não foi identificado pela estrutura do DOCX. Confirme se está ausente ou se utiliza um título fora do padrão.")
+    if not elements["abstract"]:
+        add_issue(issues, code="missing_abstract", severity="info", message="Abstract/resumo em língua estrangeira não foi identificado. Confirme a exigência do curso antes de incluí-lo.")
+    if config.institution == "cgaem" and config.document_type == "article" and elements["sumario"]:
+        add_issue(issues, code="cgaem_unexpected_sumario", severity="info", message="O roteiro do CGAEM/ESFCEx para artigo científico não prevê um SUMÁRIO separado; confirme se este título é intencional.")
     if text_start is None:
         add_issue(issues, code="textual_start_not_found", severity="error", message="Não foi possível localizar o início da parte textual (por exemplo, INTRODUÇÃO). O motor não aplicará formatação global de corpo para não alterar a capa e os elementos pré-textuais.")
     elif text_start_source != "explicit":
@@ -561,6 +659,7 @@ def scan_document(doc: Document, config: ReviewConfig) -> dict[str, Any]:
             "NBR_14724": "2024", "NBR_6023": "2025_updates", "NBR_10520": "2023",
             "NBR_6028": "2021", "NBR_6027": "2012", "NBR_6024": "2012", "NBR_6022": "2018",
         },
+        "institution": config.institution,
         "document_type": config.document_type,
         "citation_system": citation_system,
         "paragraph_count": len(paragraphs),
@@ -579,13 +678,7 @@ def scan_document(doc: Document, config: ReviewConfig) -> dict[str, Any]:
         "abstract_blocks": abstract_blocks,
         "reference_entries": ref_entries,
         "issues": issues,
-        "manual_validation": [
-            "Confirme o manual/template da instituição, que prevalece sobre o perfil geral.",
-            "Confirme cada citação direta contra a fonte original e seu localizador.",
-            "Confirme a exatidão de autor, título, edição, local, editora, DOI, URL e data de acesso das referências.",
-            "Abra o arquivo no Word e atualize campos (sumário, paginação e referências cruzadas) antes da entrega.",
-            "Revise visualmente tabelas, ilustrações, notas, cabeçalhos, quebras de seção e elementos pré-textuais.",
-        ],
+        "manual_validation": _manual_validation_notes(config),
     }
 
 
@@ -611,6 +704,143 @@ def _set_reference_format(paragraph: Paragraph, font: str) -> None:
     fmt.space_before = Pt(0)
     fmt.space_after = Pt(12)
     set_paragraph_font(paragraph, font, 12)
+
+
+def reference_title_span(text: str) -> tuple[int, int] | None:
+    """Localiza, de forma conservadora, o trecho do título a negritar em uma referência.
+
+    Retorna None sempre que o formato da entrada não corresponde com segurança a um
+    dos padrões validados (livro/monografia simples, norma NBR, instrumento legal).
+    Nenhuma entrada é negritada "no chute": artigos de periódico, capítulos com
+    "In:", autores institucionais sem vírgula e entradas sem o rodapé
+    "Local: Editora, ano" ficam de fora e são listados para revisão manual.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return None
+    lead_offset = len(text) - len(text.lstrip())
+
+    nbr_match = NBR_STANDARD_RE.search(stripped)
+    if nbr_match:
+        start, end = nbr_match.span(1)
+        return lead_offset + start, lead_offset + end
+
+    if re.search(r"\bIn:\s", stripped):
+        return None
+
+    legal_match = LEGAL_INSTRUMENT_RE.search(stripped)
+    if legal_match:
+        start, end = legal_match.span()
+        return lead_offset + start, lead_offset + end
+
+    if PERIODICAL_MARKER_RE.search(stripped):
+        return None
+
+    tail = TAIL_PLACE_PUBLISHER_YEAR_RE.search(stripped)
+    if not tail:
+        return None
+    colon_pos = tail.start()
+
+    author_match = AUTHOR_BLOCK_RE.match(stripped)
+    if not author_match:
+        return None
+    title_start = author_match.end()
+    if title_start >= colon_pos:
+        return None
+
+    boundary = TITLE_BOUNDARY_RE.search(stripped, title_start, colon_pos)
+    title_end = boundary.start() + 1 if boundary else colon_pos
+
+    if title_end - title_start < 3:
+        return None
+    return lead_offset + title_start, lead_offset + title_end
+
+
+def _split_and_bold_run(run, rel_start: int, rel_end: int) -> None:
+    """Aplica negrito a [rel_start:rel_end) de um run, dividindo-o em até 3 runs."""
+    text = run.text
+    if rel_start <= 0 and rel_end >= len(text):
+        run.bold = True
+        return
+
+    r_element = run._r
+    parent = r_element.getparent()
+    if parent is None:
+        run.bold = True
+        return
+    index = list(parent).index(r_element)
+
+    def _clone_with_text(new_text: str):
+        new_r = copy.deepcopy(r_element)
+        for t_node in new_r.findall(qn("w:t")):
+            new_r.remove(t_node)
+        # Também remove marcadores de tabulação/quebra clonados para não duplicá-los;
+        # referências bibliográficas não costumam conter esses elementos.
+        for tag in ("w:tab", "w:br", "w:cr"):
+            for node in new_r.findall(qn(tag)):
+                new_r.remove(node)
+        t_element = OxmlElement("w:t")
+        t_element.text = new_text
+        t_element.set(qn("xml:space"), "preserve")
+        new_r.append(t_element)
+        return new_r
+
+    before_text, bold_text, after_text = text[:rel_start], text[rel_start:rel_end], text[rel_end:]
+    new_elements = []
+    if before_text:
+        new_elements.append(_clone_with_text(before_text))
+    bold_r = _clone_with_text(bold_text)
+    bold_rpr = bold_r.find(qn("w:rPr"))
+    if bold_rpr is None:
+        bold_rpr = OxmlElement("w:rPr")
+        bold_r.insert(0, bold_rpr)
+    if bold_rpr.find(qn("w:b")) is None:
+        bold_rpr.append(OxmlElement("w:b"))
+    new_elements.append(bold_r)
+    if after_text:
+        new_elements.append(_clone_with_text(after_text))
+
+    for offset, new_r in enumerate(new_elements):
+        parent.insert(index + offset, new_r)
+    parent.remove(r_element)
+
+
+def _apply_bold_span(paragraph: Paragraph, start: int, end: int) -> bool:
+    """Negrita paragraph.text[start:end), dividindo runs quando necessário.
+
+    Só age quando a soma dos textos dos runs corresponde exatamente ao texto do
+    parágrafo (sem hyperlinks ou campos intercalados), para nunca deslocar o
+    negrito para o trecho errado.
+    """
+    if start is None or end is None or start >= end:
+        return False
+    runs = list(paragraph.runs)
+    if sum(len(run.text) for run in runs) != len(paragraph.text):
+        return False
+    cumulative = 0
+    applied = False
+    for run in runs:
+        run_len = len(run.text)
+        run_start, run_end = cumulative, cumulative + run_len
+        cumulative = run_end
+        overlap_start, overlap_end = max(run_start, start), min(run_end, end)
+        if overlap_start < overlap_end and run_len:
+            _split_and_bold_run(run, overlap_start - run_start, overlap_end - run_start)
+            applied = True
+    return applied
+
+
+def _bold_reference_title(paragraph: Paragraph) -> str:
+    """Tenta negritar o título de uma entrada de referência. Retorna 'bolded',
+    'skipped' (padrão não reconhecido com segurança) ou 'unchanged' (já em negrito
+    ou nada para fazer)."""
+    span = reference_title_span(paragraph.text)
+    if span is None:
+        return "skipped"
+    start, end = span
+    if _apply_bold_span(paragraph, start, end):
+        return "bolded"
+    return "skipped"
 
 
 def _set_abstract_format(paragraph: Paragraph, font: str) -> None:
@@ -708,6 +938,48 @@ def _insert_toc_if_empty(doc: Document, paragraphs: list[Paragraph], actions: li
     add_issue(issues, code="toc_static_not_replaced", severity="info", message="Há conteúdo sob SUMÁRIO, mas nenhum campo TOC identificável. O conteúdo estático foi preservado para não apagar números de página sem uma paginação renderizada.")
 
 
+def _insert_toc_if_missing(doc: Document, paragraphs: list[Paragraph], config: ReviewConfig, actions: list[dict[str, Any]], issues: list[dict[str, Any]]) -> None:
+    """Cria a seção SUMÁRIO com campo TOC nativo quando ela não existe no documento.
+
+    Só age em TCC/monografia (onde a NBR 14724 exige sumário) e só quando há um
+    ponto de ancoragem confiável -- o início do texto, isto é, INTRODUÇÃO ou
+    capítulo equivalente -- para não inserir a seção em um lugar arbitrário do
+    documento. Quando esse ponto não pode ser localizado com segurança, o
+    motor não adivinha: registra um achado para inserção manual.
+    """
+    if config.document_type != "tcc":
+        return
+    if any(normalized(p.text) == "SUMARIO" for p in paragraphs):
+        return
+    text_start, _source = _textual_start(paragraphs)
+    if text_start is None:
+        add_issue(
+            issues,
+            code="sumario_not_auto_inserted",
+            severity="info",
+            auto_fixable=False,
+            message="Não foi possível criar o SUMÁRIO automaticamente porque o início do texto (INTRODUÇÃO ou capítulo equivalente) não pôde ser localizado com segurança. Insira a seção SUMÁRIO manualmente antes da introdução.",
+        )
+        return
+    anchor = paragraphs[text_start]
+    heading_paragraph = insert_before(anchor)
+    heading_paragraph.add_run("SUMÁRIO")
+    try:
+        heading_paragraph.style = doc.styles["Heading 1"]
+    except KeyError:
+        pass
+    _set_heading_format(heading_paragraph, config.font, numbered=False)
+    field_paragraph = insert_after(heading_paragraph)
+    field_paragraph.paragraph_format.first_line_indent = Cm(0)
+    add_word_field(field_paragraph, 'TOC \\o "1-3" \\h \\z \\u')
+    requested_field_update(doc)
+    actions.append({
+        "code": "sumario_section_inserted",
+        "count": 1,
+        "message": "Seção SUMÁRIO criada com campo TOC nativo do Word antes do início do texto, porque o documento não tinha nenhum SUMÁRIO. Abra o arquivo no Word e atualize o campo (clique com o botão direito sobre o sumário > Atualizar campo).",
+    })
+
+
 def apply_formatting(input_path: Path, output_path: Path, config: ReviewConfig) -> dict[str, Any]:
     doc = Document(input_path)
     before = scan_document(doc, config)
@@ -766,6 +1038,8 @@ def apply_formatting(input_path: Path, output_path: Path, config: ReviewConfig) 
 
     active_abstract = False
     formatted = {"body": 0, "headings": 0, "references": 0, "abstracts": 0, "long_quotes": 0, "captions": 0, "tables": 0}
+    reference_titles_bolded = 0
+    reference_titles_skipped = 0
     for index, paragraph in enumerate(paragraphs):
         text = paragraph.text.strip()
         title = normalized(text)
@@ -802,6 +1076,11 @@ def apply_formatting(input_path: Path, output_path: Path, config: ReviewConfig) 
         elif in_references:
             _set_reference_format(paragraph, config.font)
             formatted["references"] += 1
+            outcome = _bold_reference_title(paragraph)
+            if outcome == "bolded":
+                reference_titles_bolded += 1
+            elif outcome == "skipped":
+                reference_titles_skipped += 1
         elif long_quote:
             _set_long_quote_format(paragraph, config.font)
             formatted["long_quotes"] += 1
@@ -827,8 +1106,23 @@ def apply_formatting(input_path: Path, output_path: Path, config: ReviewConfig) 
     for code, count in formatted.items():
         if count:
             actions.append({"code": f"formatted_{code}", "count": count, "message": f"{count} elemento(s) recebeu(ram) formatação de apresentação aplicável."})
+    if reference_titles_bolded:
+        actions.append({
+            "code": "reference_titles_bolded",
+            "count": reference_titles_bolded,
+            "message": f"{reference_titles_bolded} referência(s) tiveram o título destacado em negrito (livros/monografias, normas NBR e instrumentos legais).",
+        })
+    if reference_titles_skipped:
+        add_issue(
+            format_issues,
+            code="reference_title_not_bolded",
+            severity="info",
+            auto_fixable=False,
+            message=f"{reference_titles_skipped} referência(s) não tiveram o título negritado automaticamente porque o formato da entrada (artigo de periódico, capítulo com \"In:\", autor institucional sem vírgula, ou entrada fora dos padrões reconhecidos) não pôde ser identificado com segurança. Revise manualmente se o seu manual institucional exige negrito nesses casos.",
+        )
 
     if config.toc_mode == "insert-if-empty":
+        _insert_toc_if_missing(doc, list(doc.paragraphs), config, actions, format_issues)
         _insert_toc_if_empty(doc, list(doc.paragraphs), actions, format_issues)
     elif has_toc_field(doc):
         requested_field_update(doc)

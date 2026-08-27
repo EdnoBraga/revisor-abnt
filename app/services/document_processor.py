@@ -41,9 +41,20 @@ def _retention_hours() -> int:
     return min(max(value, 1), 168)
 
 
+# Um job saudavel processa em segundos a poucos minutos (o subprocesso de
+# formatacao tem timeout de 180s, a conversao de .doc tem 120s). Se um job
+# ainda estiver em "uploaded"/"processing" muito depois disso, o processo que
+# deveria terminá-lo provavelmente morreu (crash, reinício do container) e o
+# job ficaria preso para sempre sem isto -- BackgroundTasks nao tem retomada
+# nem supervisor proprio.
+STALE_PROCESSING_MINUTES = 30
+
+
 def cleanup_expired_jobs() -> int:
-    """Remove only completed/failed jobs created by this app after the retention window."""
-    threshold = datetime.now(UTC).timestamp() - (_retention_hours() * 3600)
+    """Remove jobs finalizados apos a retencao e jobs travados ha muito tempo em processamento."""
+    now = datetime.now(UTC).timestamp()
+    threshold = now - (_retention_hours() * 3600)
+    stale_threshold = now - (STALE_PROCESSING_MINUTES * 60)
     removed = 0
     for candidate in _jobs_root().iterdir():
         if not candidate.is_dir():
@@ -55,7 +66,11 @@ def cleanup_expired_jobs() -> int:
             created_at = datetime.fromisoformat(job["created_at"]).timestamp()
         except (OSError, ValueError, KeyError, json.JSONDecodeError):
             continue
-        if job.get("status") in {"completed", "failed"} and created_at < threshold:
+        status = job.get("status")
+        if status in {"completed", "failed"} and created_at < threshold:
+            shutil.rmtree(candidate, ignore_errors=True)
+            removed += 1
+        elif status in {"uploaded", "processing"} and created_at < stale_threshold:
             shutil.rmtree(candidate, ignore_errors=True)
             removed += 1
     return removed
@@ -182,6 +197,7 @@ def process_job(
     toc_mode: str = "audit",
     pagination_mode: str = "audit",
     order_references: bool = True,
+    institution: str = "generic",
 ) -> None:
     """Executa a revisão em diretório próprio; nunca modifica o arquivo original."""
     try:
@@ -198,6 +214,7 @@ def process_job(
             [
                 sys.executable, str(AUDIT_SCRIPT), str(input_docx), "--out", str(audit_path),
                 "--document-type", document_type, "--citation-system", citation_system,
+                "--institution", institution,
             ],
             "a auditoria",
         )
@@ -205,6 +222,7 @@ def process_job(
             sys.executable, str(FORMAT_SCRIPT), str(input_docx), "--out", str(output_path),
             "--document-type", document_type, "--citation-system", citation_system,
             "--font", font, "--toc-mode", toc_mode, "--pagination-mode", pagination_mode,
+            "--institution", institution,
         ]
         if not order_references:
             format_command.append("--do-not-order-references")
@@ -230,6 +248,7 @@ def process_job(
                 "toc_mode": toc_mode,
                 "pagination_mode": pagination_mode,
                 "order_references": order_references,
+                "institution": institution,
             },
             review_summary=review_summary,
         )

@@ -1,6 +1,9 @@
+import json
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 import sys
+import uuid
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
@@ -169,6 +172,38 @@ def test_engine_preserves_citation_split_between_runs(tmp_path):
     assert body.text == "Texto com (SILVA, 2020) em trechos distintos."
     assert body.runs[1].bold is True
     assert any(issue["code"] == "citation_case_split_across_runs" for issue in report["issues_remaining"])
+
+
+def test_cleanup_removes_stale_processing_jobs(tmp_path, monkeypatch):
+    """Um job preso em 'processing' (processo morto por crash/reinicio) precisa
+    ser reaproveitado pela limpeza, senao o diretorio de jobs cresce para sempre
+    -- BackgroundTasks nao tem supervisor nem retomada propria."""
+    monkeypatch.setenv("REVISOR_ABNT_JOBS_DIR", str(tmp_path / "jobs"))
+    from app.services import document_processor as dp
+
+    stale_id = str(uuid.uuid4())
+    stale_dir = tmp_path / "jobs" / stale_id
+    stale_dir.mkdir(parents=True)
+    stale_created = (datetime.now(UTC) - timedelta(minutes=45)).isoformat()
+    (stale_dir / "job.json").write_text(
+        json.dumps({"id": stale_id, "status": "processing", "created_at": stale_created}),
+        encoding="utf-8",
+    )
+
+    fresh_id = str(uuid.uuid4())
+    fresh_dir = tmp_path / "jobs" / fresh_id
+    fresh_dir.mkdir(parents=True)
+    fresh_created = datetime.now(UTC).isoformat()
+    (fresh_dir / "job.json").write_text(
+        json.dumps({"id": fresh_id, "status": "processing", "created_at": fresh_created}),
+        encoding="utf-8",
+    )
+
+    removed = dp.cleanup_expired_jobs()
+
+    assert removed == 1
+    assert not stale_dir.exists()
+    assert fresh_dir.exists()
 
 
 def test_audit_does_not_claim_reference_or_pagination_corrections_without_evidence():

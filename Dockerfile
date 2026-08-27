@@ -1,8 +1,13 @@
 FROM python:3.12-slim
 
+# Permite gravar o commit git usado no build, exposto depois em /api/health,
+# para nunca mais ficar em duvida sobre qual versao do motor esta rodando.
+ARG GIT_COMMIT=unknown
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     REVISOR_ABNT_JOBS_DIR=/var/lib/revisor-abnt/jobs \
+    REVISOR_ABNT_COMMIT=${GIT_COMMIT} \
     HOME=/tmp
 
 RUN apt-get update \

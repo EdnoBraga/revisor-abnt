@@ -20,6 +20,7 @@ def main() -> None:
     parser.add_argument("--toc-mode", choices=("audit", "insert-if-empty"), default="audit")
     parser.add_argument("--pagination-mode", choices=("audit", "request"), default="audit")
     parser.add_argument("--do-not-order-references", action="store_true")
+    parser.add_argument("--institution", choices=("generic", "cgaem"), default="generic")
     args = parser.parse_args()
 
     config = ReviewConfig(
@@ -29,6 +30,7 @@ def main() -> None:
         toc_mode=args.toc_mode,
         pagination_mode=args.pagination_mode,
         order_references=not args.do_not_order_references,
+        institution=args.institution,
     )
     report = apply_formatting(args.input.resolve(), args.out.resolve(), config)
     report_path = args.out.resolve().with_name(f"{args.out.stem}_abnt_report.json")

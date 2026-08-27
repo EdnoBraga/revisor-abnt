@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, status
@@ -48,7 +49,11 @@ def privacy() -> FileResponse:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok", "expired_jobs_removed": cleanup_expired_jobs()}
+    return {
+        "status": "ok",
+        "expired_jobs_removed": cleanup_expired_jobs(),
+        "version": os.getenv("REVISOR_ABNT_COMMIT", "dev"),
+    }
 
 
 @app.post("/api/revisions", status_code=status.HTTP_202_ACCEPTED)
@@ -61,6 +66,7 @@ async def create_revision(
     toc_mode: str = Form("audit"),
     pagination_mode: str = Form("audit"),
     order_references: bool = Form(True),
+    institution: str = Form("generic"),
     privacy_acknowledged: bool = Form(...),
 ) -> dict:
     if not privacy_acknowledged:
@@ -76,6 +82,8 @@ async def create_revision(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Fonte de revisão inválida.")
     if toc_mode not in {"audit", "insert-if-empty"} or pagination_mode not in {"audit", "request"}:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Opção de estrutura inválida.")
+    if institution not in {"generic", "cgaem"}:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Perfil institucional inválido.")
     try:
         job = await create_job_from_upload(document)
     except ProcessingError as exc:
@@ -89,6 +97,7 @@ async def create_revision(
         toc_mode=toc_mode,
         pagination_mode=pagination_mode,
         order_references=order_references,
+        institution=institution,
     )
     return public_job(job)
 

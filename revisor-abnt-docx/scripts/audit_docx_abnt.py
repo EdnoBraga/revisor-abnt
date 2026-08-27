@@ -18,11 +18,12 @@ def main() -> None:
     parser.add_argument("--out", type=Path)
     parser.add_argument("--document-type", choices=("tcc", "article"), default="tcc")
     parser.add_argument("--citation-system", choices=("auto", "author-date", "numeric"), default="auto")
+    parser.add_argument("--institution", choices=("generic", "cgaem"), default="generic")
     args = parser.parse_args()
 
     source = args.input.resolve()
     output = args.out or source.with_name(f"{source.stem}_abnt_report.json")
-    report = scan_document(Document(source), ReviewConfig(document_type=args.document_type, citation_system=args.citation_system))
+    report = scan_document(Document(source), ReviewConfig(document_type=args.document_type, citation_system=args.citation_system, institution=args.institution))
     report["input"] = str(source)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
