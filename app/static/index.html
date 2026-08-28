@@ -58,8 +58,14 @@
               </label>
               <label>Sumário
                 <select name="toc_mode">
-                  <option value="audit">Preservar e auditar</option>
-                  <option value="insert-if-empty">Criar/inserir campo automático (cria a seção se não existir)</option>
+                  <option value="insert-if-empty" selected>Corrigir automaticamente (cria a seção se não existir)</option>
+                  <option value="audit">Somente auditar (não alterar)</option>
+                </select>
+              </label>
+              <label>Paginação
+                <select name="pagination_mode">
+                  <option value="request" selected>Corrigir automaticamente (NBR 14724)</option>
+                  <option value="audit">Somente auditar (não alterar)</option>
                 </select>
               </label>
               <label>Perfil institucional
@@ -73,7 +79,7 @@
               <input name="order_references" type="checkbox" checked />
               Ordenar referências somente quando o sistema autor-data for identificado e todas as entradas puderem ser lidas com segurança.
             </label>
-            <p class="option-hint">A paginação é auditada. O sistema não insere número de página em todas as seções, pois isso pode numerar capa e elementos pré-textuais ou reiniciar a contagem.</p>
+            <p class="option-hint">Por padrão, sumário e paginação são corrigidos automaticamente: o Revisor insere uma quebra de seção antes da INTRODUÇÃO e um campo de página nativo do Word, sem numerar capa ou elementos pré-textuais e sem reiniciar a contagem. Selecione "Somente auditar" para revisar manualmente no Word em vez disso.</p>
           </details>
           <label class="option consent">
             <input name="privacy_acknowledged" type="checkbox" required />

@@ -75,8 +75,14 @@ da verificação no domínio.
 - Preservação da numeração automática de seções, auditoria de citações autor-data/numéricas,
   correspondência provável citação–referência e ordenação alfabética apenas de referências
   autor-data que puderem ser lidas com segurança.
-- Detecção/preservação de campo automático de sumário; inserção de campo TOC somente em um
-  SUMÁRIO vazio; relatório JSON de ações e pendências.
+- Detecção/preservação de campo automático de sumário; criação automática da seção SUMÁRIO
+  (título + campo TOC nativo do Word) quando o documento não tem nenhuma, por padrão.
+- Numeração de página conforme a NBR 14724, por padrão: insere uma quebra de seção antes da
+  parte textual e um campo PAGE nativo do Word na nova seção, sem numerar capa/elementos
+  pré-textuais e sem reiniciar a contagem. Cada opção (sumário, paginação) pode ser trocada
+  para "somente auditar" na interface, para quem preferir revisar manualmente no Word.
+- Relatório de ações e pendências em PDF (legível, para leitura direta) e em JSON (para
+  integração/depuração).
 
 ## Limites do produto
 
@@ -84,9 +90,9 @@ da verificação no domínio.
 - O manual da instituição do aluno prevalece sobre regras gerais.
 - Não inventar ou alterar silenciosamente dados de referências e citações.
 - O documento original deve permanecer intacto; a saída é sempre uma nova cópia.
-- Paginação conforme a NBR 14724 depende de quebra de seção antes da parte textual. O produto
-  audita esse requisito, mas não injeta `PAGE` em todos os cabeçalhos, pois isso pode numerar
-  capa e elementos pré-textuais ou reiniciar a contagem.
+- A correção automática de paginação e de sumário depende de o início do texto (INTRODUÇÃO ou
+  equivalente) ser identificável com segurança na estrutura do DOCX; quando não é, o produto
+  registra um achado para ajuste manual em vez de adivinhar onde inserir a seção.
 - Correção textual de citações e metadados bibliográficos depende de fonte comprovada e é uma
   etapa assistida, não uma inferência automática.
 

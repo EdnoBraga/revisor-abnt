@@ -72,6 +72,36 @@ def test_docx_revision_creates_downloadable_copy(tmp_path, monkeypatch):
     assert report.json()["config"]["font"] == "Arial"
     assert job["review_summary"]["actions_applied"] > 0
 
+    # O usuario pediu explicitamente um relatorio em PDF, nao apenas JSON, com
+    # o que foi corrigido automaticamente -- este teste garante que o endpoint
+    # existe e entrega um PDF de verdade, nao apenas um link quebrado.
+    pdf_report = client.get(job["format_report_pdf_url"])
+    assert pdf_report.status_code == 200
+    assert pdf_report.headers["content-type"] == "application/pdf"
+    assert pdf_report.content[:4] == b"%PDF"
+
+
+def test_default_options_apply_corrections_instead_of_only_auditing(tmp_path, monkeypatch):
+    """Reproduz o pedido do usuario: 'eu nao quero auditagem, eu quero
+    correcao'. Sem o usuario escolher nada nas opcoes de revisao, sumario e
+    paginacao devem ser corrigidos automaticamente, nao apenas auditados."""
+    monkeypatch.setenv("REVISOR_ABNT_JOBS_DIR", str(tmp_path / "jobs"))
+    client = TestClient(app)
+    response = client.post(
+        "/api/revisions",
+        files={"document": ("tcc.docx", sample_docx(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        data={"privacy_acknowledged": "true"},
+    )
+    assert response.status_code == 202
+    job = client.get(response.json()["status_url"]).json()
+    assert job["status"] == "completed"
+    report = client.get(job["format_report_url"]).json()
+    assert report["config"]["toc_mode"] == "insert-if-empty"
+    assert report["config"]["pagination_mode"] == "request"
+    codes = {action["code"] for action in report["actions_applied"]}
+    assert "sumario_section_inserted" in codes, report["actions_applied"]
+    assert "pagination_section_break_inserted" in codes, report["actions_applied"]
+
 
 def test_engine_applies_real_layout_and_preserves_word_numbering(tmp_path):
     source = tmp_path / "entrada.docx"

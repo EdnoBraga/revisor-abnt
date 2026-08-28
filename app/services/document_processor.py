@@ -194,8 +194,8 @@ def process_job(
     document_type: str = "tcc",
     citation_system: str = "auto",
     font: str = "Times New Roman",
-    toc_mode: str = "audit",
-    pagination_mode: str = "audit",
+    toc_mode: str = "insert-if-empty",
+    pagination_mode: str = "request",
     order_references: bool = True,
     institution: str = "generic",
 ) -> None:
@@ -228,6 +228,7 @@ def process_job(
             format_command.append("--do-not-order-references")
         _run(format_command, "a formatação")
         format_report = output_path.with_name(f"{output_path.stem}_abnt_report.json")
+        format_report_pdf = output_path.with_name(f"{output_path.stem}_abnt_report.pdf")
         review_summary = None
         if format_report.is_file():
             report_data = json.loads(format_report.read_text(encoding="utf-8"))
@@ -241,6 +242,7 @@ def process_job(
             output_filename="trabalho-revisado-abnt.docx",
             audit_filename=audit_path.name,
             format_report_filename=format_report.name if format_report.is_file() else None,
+            format_report_pdf_filename=format_report_pdf.name if format_report_pdf.is_file() else None,
             review_options={
                 "document_type": document_type,
                 "citation_system": citation_system,
@@ -259,7 +261,12 @@ def process_job(
 
 
 def job_file(job_id: str, filename: str) -> Path:
-    allowed = {"trabalho-revisado-abnt.docx", "relatorio-auditoria.json", "trabalho-revisado-abnt_abnt_report.json"}
+    allowed = {
+        "trabalho-revisado-abnt.docx",
+        "relatorio-auditoria.json",
+        "trabalho-revisado-abnt_abnt_report.json",
+        "trabalho-revisado-abnt_abnt_report.pdf",
+    }
     if filename not in allowed:
         raise ProcessingError("Arquivo de resultado inválido.")
     path = _job_dir(job_id) / filename

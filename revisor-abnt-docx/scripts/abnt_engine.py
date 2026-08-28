@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from docx import Document
+from docx.enum.section import WD_SECTION_START
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -91,8 +92,8 @@ class ReviewConfig:
     document_type: str = "tcc"
     citation_system: str = "auto"
     font: str = DEFAULT_FONT
-    toc_mode: str = "audit"
-    pagination_mode: str = "audit"
+    toc_mode: str = "insert-if-empty"
+    pagination_mode: str = "request"
     order_references: bool = True
     institution: str = "generic"
 
@@ -938,7 +939,7 @@ def _insert_toc_if_empty(doc: Document, paragraphs: list[Paragraph], actions: li
     add_issue(issues, code="toc_static_not_replaced", severity="info", message="Há conteúdo sob SUMÁRIO, mas nenhum campo TOC identificável. O conteúdo estático foi preservado para não apagar números de página sem uma paginação renderizada.")
 
 
-def _insert_toc_if_missing(doc: Document, paragraphs: list[Paragraph], config: ReviewConfig, actions: list[dict[str, Any]], issues: list[dict[str, Any]]) -> None:
+def _insert_toc_if_missing(doc: Document, paragraphs: list[Paragraph], config: ReviewConfig, actions: list[dict[str, Any]], issues: list[dict[str, Any]]) -> bool:
     """Cria a seção SUMÁRIO com campo TOC nativo quando ela não existe no documento.
 
     Só age em TCC/monografia (onde a NBR 14724 exige sumário) e só quando há um
@@ -946,11 +947,15 @@ def _insert_toc_if_missing(doc: Document, paragraphs: list[Paragraph], config: R
     capítulo equivalente -- para não inserir a seção em um lugar arbitrário do
     documento. Quando esse ponto não pode ser localizado com segurança, o
     motor não adivinha: registra um achado para inserção manual.
+
+    Retorna True quando a seção foi de fato criada, para que a chamada
+    seguinte (_insert_toc_if_empty) não relate a mesma ação já registrada
+    aqui como se fosse um achado separado.
     """
     if config.document_type != "tcc":
-        return
+        return False
     if any(normalized(p.text) == "SUMARIO" for p in paragraphs):
-        return
+        return False
     text_start, _source = _textual_start(paragraphs)
     if text_start is None:
         add_issue(
@@ -960,7 +965,7 @@ def _insert_toc_if_missing(doc: Document, paragraphs: list[Paragraph], config: R
             auto_fixable=False,
             message="Não foi possível criar o SUMÁRIO automaticamente porque o início do texto (INTRODUÇÃO ou capítulo equivalente) não pôde ser localizado com segurança. Insira a seção SUMÁRIO manualmente antes da introdução.",
         )
-        return
+        return False
     anchor = paragraphs[text_start]
     heading_paragraph = insert_before(anchor)
     heading_paragraph.add_run("SUMÁRIO")
@@ -978,6 +983,113 @@ def _insert_toc_if_missing(doc: Document, paragraphs: list[Paragraph], config: R
         "count": 1,
         "message": "Seção SUMÁRIO criada com campo TOC nativo do Word antes do início do texto, porque o documento não tinha nenhum SUMÁRIO. Abra o arquivo no Word e atualize o campo (clique com o botão direito sobre o sumário > Atualizar campo).",
     })
+    return True
+
+
+def _insert_pagination_section_break(
+    doc: Document,
+    paragraphs: list[Paragraph],
+    text_start_index: int | None,
+    actions: list[dict[str, Any]],
+    issues: list[dict[str, Any]],
+) -> None:
+    """Numera a partir do início textual (NBR 14724) sem tocar em capa/pré-textuais.
+
+    A regra da norma é: elementos pré-textuais contam na paginação, mas não mostram
+    número; o número aparece pela primeira vez na primeira página textual, dando
+    sequência à contagem (não reinicia em "1"). Isso é obtido dividindo o documento
+    em duas seções -- a primeira sem cabeçalho (logo sem número visível), a segunda
+    com um campo PAGE nativo do Word em cabeçalho próprio (não vinculado à anterior).
+    Como o campo é nativo, o próprio Word calcula o número absoluto correto ao
+    abrir o arquivo; o motor nunca calcula nem grava um número fixo.
+
+    Só age quando há exatamente uma seção (documento ainda não tem quebra alguma) e
+    nenhum campo PAGE já existe -- em qualquer outro caso, o risco de conflitar com
+    uma paginação que o usuário já tenha montado manualmente é maior que o ganho, e
+    o motor prefere não mexer.
+    """
+    if text_start_index is None or text_start_index <= 0:
+        add_issue(
+            issues,
+            code="pagination_not_auto_applied",
+            severity="info",
+            auto_fixable=False,
+            message="A numeração não foi aplicada automaticamente porque o início da parte textual (INTRODUÇÃO ou capítulo equivalente) não pôde ser localizado com segurança, ou não há elemento pré-textual antes dele. Configure a numeração manualmente no Word.",
+        )
+        return
+    if len(doc.sections) != 1:
+        add_issue(
+            issues,
+            code="pagination_not_auto_applied",
+            severity="info",
+            auto_fixable=False,
+            message="A numeração não foi aplicada automaticamente porque o documento já tem mais de uma seção. Como o motor não sabe se essas seções já fazem parte de uma paginação existente, prefere não mexer para não sobrepor uma configuração manual.",
+        )
+        return
+    if any(page_field_count(section) for section in doc.sections):
+        add_issue(
+            issues,
+            code="pagination_not_auto_applied",
+            severity="info",
+            auto_fixable=False,
+            message="A numeração não foi aplicada automaticamente porque já existe um campo PAGE no cabeçalho do documento. Revise manualmente se ele está posicionado a partir da página textual correta.",
+        )
+        return
+
+    split_paragraph = paragraphs[text_start_index]
+    split_p_elm = split_paragraph._p
+    prev_p_elm = split_p_elm.getprevious()
+    while prev_p_elm is not None and prev_p_elm.tag != qn("w:p"):
+        prev_p_elm = prev_p_elm.getprevious()
+    if prev_p_elm is None:
+        add_issue(
+            issues,
+            code="pagination_not_auto_applied",
+            severity="info",
+            auto_fixable=False,
+            message="A numeração não foi aplicada automaticamente porque não foi encontrado um parágrafo imediatamente antes do início textual para ancorar a quebra de seção. Configure a numeração manualmente no Word.",
+        )
+        return
+
+    body = doc.element.body
+    body_sect_pr = body.find(qn("w:sectPr"))
+    if body_sect_pr is None:
+        return
+
+    # Clona as propriedades da (única) seção atual para a seção 1 (pré-textual),
+    # preservando papel/margens, mas sem cabeçalho/rodapé próprios -- assim ela não
+    # herda nem exibe nenhum número.
+    section1_sect_pr = copy.deepcopy(body_sect_pr)
+    for tag in ("w:headerReference", "w:footerReference"):
+        for element in section1_sect_pr.findall(qn(tag)):
+            section1_sect_pr.remove(element)
+    pPr = prev_p_elm.find(qn("w:pPr"))
+    if pPr is None:
+        pPr = OxmlElement("w:pPr")
+        prev_p_elm.insert(0, pPr)
+    pPr.append(section1_sect_pr)
+
+    # A sectPr original do corpo passa a descrever a seção 2 (textual + pós-textual).
+    section2 = doc.sections[-1]
+    section2.start_type = WD_SECTION_START.NEW_PAGE
+    header = section2.header
+    header.is_linked_to_previous = False
+    section2.header_distance = Cm(2)
+    header_paragraph = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+    for run in list(header_paragraph.runs):
+        run.text = ""
+        run._r.getparent().remove(run._r)
+    header_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    header_paragraph.paragraph_format.first_line_indent = Cm(0)
+    set_paragraph_font(header_paragraph, DEFAULT_FONT, 10)
+    add_word_field(header_paragraph, "PAGE")
+    requested_field_update(doc)
+
+    actions.append({
+        "code": "pagination_section_break_inserted",
+        "count": 1,
+        "message": "Numeração configurada a partir da primeira página textual: foi inserida uma quebra de seção antes da INTRODUÇÃO, com campo de página nativo do Word na nova seção (sem número nas páginas pré-textuais) e continuando a contagem, sem reiniciar em 1. Abra o arquivo no Word e atualize os campos para ver o número calculado.",
+    })
 
 
 def apply_formatting(input_path: Path, output_path: Path, config: ReviewConfig) -> dict[str, Any]:
@@ -985,7 +1097,13 @@ def apply_formatting(input_path: Path, output_path: Path, config: ReviewConfig) 
     before = scan_document(doc, config)
     paragraphs = list(doc.paragraphs)
     actions: list[dict[str, Any]] = []
-    format_issues = list(before["issues"])
+    # Não semeamos com before["issues"]: o achado inicial (ex.: "sem campo PAGE",
+    # "SUMÁRIO não identificado") fica obsoleto assim que a própria correção
+    # abaixo o resolve, e listar um problema já corrigido como pendência confunde
+    # o relatório final. before["issues"] completo continua disponível em
+    # report["before"] para quem quiser o diagnóstico original; o que falta
+    # de fato depois de tudo aplicado é recalculado por after["issues"] ao final.
+    format_issues: list[dict[str, Any]] = []
 
     changed_sections = 0
     for section in doc.sections:
@@ -1122,14 +1240,17 @@ def apply_formatting(input_path: Path, output_path: Path, config: ReviewConfig) 
         )
 
     if config.toc_mode == "insert-if-empty":
-        _insert_toc_if_missing(doc, list(doc.paragraphs), config, actions, format_issues)
-        _insert_toc_if_empty(doc, list(doc.paragraphs), actions, format_issues)
+        created = _insert_toc_if_missing(doc, list(doc.paragraphs), config, actions, format_issues)
+        if not created:
+            _insert_toc_if_empty(doc, list(doc.paragraphs), actions, format_issues)
     elif has_toc_field(doc):
         requested_field_update(doc)
         actions.append({"code": "toc_update_requested", "count": 1, "message": "Campo TOC existente preservado; o Word foi instruído a atualizá-lo ao abrir o arquivo."})
 
-    if config.pagination_mode != "audit":
-        add_issue(format_issues, code="pagination_auto_insert_not_supported", severity="warning", auto_fixable=False, message="A inserção automática de numeração foi bloqueada: sem uma quebra de seção comprovada antes da INTRODUÇÃO, inserir PAGE no cabeçalho pode reiniciar a contagem ou numerar elementos pré-textuais. O relatório indica a configuração necessária no Word.")
+    if config.pagination_mode == "request":
+        _insert_pagination_section_break(doc, paragraphs, text_start_index, actions, format_issues)
+    else:
+        add_issue(format_issues, code="pagination_not_applied_audit_mode", severity="info", auto_fixable=False, message="Modo de auditoria: a numeração de página não foi alterada automaticamente. Selecione a opção de correção automática de paginação para que o Revisor insira a quebra de seção e o campo de página conforme a NBR 14724.")
     requested_field_update(doc)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(output_path)

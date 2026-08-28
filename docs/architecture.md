@@ -29,7 +29,16 @@ formatação trabalha em uma cópia e gera `trabalho-revisado-abnt.docx`.
   original e o sobrenome citante, com a mesma cautela de sobrenomes curtos não confirmados
   na lista de referências usada para citações comuns.
 - Criação da seção SUMÁRIO (título + campo TOC nativo do Word) quando ela não existe no
-  documento e o modo "Criar/inserir campo automático" está ativo, ancorada no início do texto.
+  documento, ancorada no início do texto; ativa por padrão (modo "Corrigir automaticamente"),
+  com opção de trocar para "Somente auditar" na interface.
+- Numeração de página conforme a NBR 14724, ativa por padrão (28/08/2026): insere uma quebra
+  de seção antes do início do texto e um campo PAGE nativo do Word na nova seção — sem número
+  visível nas páginas pré-textuais e sem reiniciar a contagem, sem precisar renderizar/contar
+  páginas para calcular um valor inicial (o próprio Word/LibreOffice calcula o número absoluto
+  a partir da ausência de cabeçalho na seção anterior). Também trocável para "Somente auditar".
+- Relatório de ações e pendências entregue em PDF de leitura direta (`pdf_report.py`), além do
+  JSON já existente — a pedido do usuário, que preferia um relatório legível a interpretar
+  código/estrutura JSON.
 - Início do texto: reconhece o título literal (INTRODUÇÃO/APRESENTAÇÃO/DESENVOLVIMENTO) e,
   na ausência dele, usa como alternativa o primeiro título com estilo Heading do documento —
   registrando a origem (`explicit`, `heading_after_toc` ou `heading_fallback`) no relatório
@@ -39,10 +48,6 @@ formatação trabalha em uma cópia e gera `trabalho-revisado-abnt.docx`.
   particularidades documentadas em `revisor-abnt-docx/references/perfil-cgaem.md`.
 - Regras dependentes de evidência: fidelidade de citação, página da fonte, autoria, DOI, URL,
   data de acesso e dados bibliográficos. Estas devem ser revisadas com fontes confirmadas.
-- Paginação: o motor identifica a ausência de campos PAGE e não os injeta em todos os
-  cabeçalhos. Para respeitar a NBR 14724, a numeração só pode ser configurada depois de uma
-  quebra de seção confirmada antes da parte textual; sem essa estrutura, a ação é um achado
-  para ajuste no Word, não uma alteração automática arriscada.
 
 ## Limites conscientes
 
@@ -61,11 +66,14 @@ forma de detectar esse tipo de trava.
 1. Login, consentimento e política de privacidade/LGPD.
 2. Modelo de documento institucional: faculdade, curso e normas próprias do aluno.
 3. Perfil institucional selecionável — primeira versão entregue (`generic`/`cgaem`, ver
-   `references/perfil-cgaem.md`); negrito de título de referência já cobre os padrões
-   validados no manual do CGAEM/ESFCEx (item entregue em 27/08/2026); falta cobrir capa,
-   paginação e permitir que o próprio usuário envie o manual da sua instituição.
+   `references/perfil-cgaem.md`); negrito de título de referência (27/08/2026) e correção
+   automática de paginação (28/08/2026) já entregues; falta cobrir capa e permitir que o
+   próprio usuário envie o manual da sua instituição.
 4. Tela de achados com proposta de correção e aprovação por item.
 5. Motor assistido para correspondência citação–referência, que só aplica alteração com
    metadados comprovados.
-6. Paginação por seção renderizada e atualização de campos por uma instalação controlada do Word/LibreOffice.
+6. Atualização de campos (TOC, PAGE) por uma instalação controlada do Word/LibreOffice no
+   servidor, para que o usuário não precise abrir o arquivo no Word manualmente para ver o
+   sumário e a numeração calculados — hoje o campo é inserido corretamente, mas seu valor só
+   aparece depois de o Word atualizar os campos ao abrir o arquivo.
 7. Fila e armazenamento seguro para produção.

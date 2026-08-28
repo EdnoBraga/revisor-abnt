@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 from docx import Document
+from docx.enum.section import WD_SECTION_START
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Cm, Pt
 
@@ -21,7 +22,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "revisor-abnt-docx" / "scrip
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from abnt_engine import ReviewConfig, apply_formatting, reference_title_span, scan_document  # noqa: E402
+from abnt_engine import ReviewConfig, apply_formatting, page_field_count, reference_title_span, scan_document  # noqa: E402
 
 
 def _add(doc, text, style=None, alignment=None, indent_cm=None):
@@ -245,6 +246,59 @@ def test_apply_formatting_fixes_case_in_apud_indirect_citations(tmp_path: Path) 
     texts = "\n".join(p.text for p in revised.paragraphs)
     assert "Silva (1990 apud Souza, 2020)" in texts
     assert "Piaget apud Vygotsky (1978)" in texts
+
+
+def test_apply_formatting_applies_pagination_section_break_by_default(tmp_path: Path) -> None:
+    """Reproduz a queixa do usuario sobre paginacao: 'e pra numerar
+    corretamente, conforme ABNT'. Com pagination_mode='request' (o padrao
+    desde que o usuario pediu correcao em vez de auditoria), o motor precisa
+    de fato inserir a quebra de secao antes do inicio textual e um campo
+    PAGE nativo no cabecalho da nova secao -- sem numerar capa/pre-textuais
+    nem reiniciar a contagem."""
+    doc = Document()
+    _add(doc, "NOME DO ALUNO", alignment=WD_ALIGN_PARAGRAPH.CENTER)
+    _add(doc, "RESUMO", style="Heading 1")
+    _add(doc, "Resumo do trabalho com o numero minimo de palavras necessario " * 10)
+    _add(doc, "1 INTRODUÇÃO", style="Heading 1")
+    _add(doc, "Texto de corpo qualquer para preencher a introdução do documento.")
+    _add(doc, "REFERÊNCIAS", style="Heading 1")
+    _add(doc, "SILVA, João. Título do trabalho. Cidade: Editora, 2020.")
+    source = tmp_path / "original.docx"
+    output = tmp_path / "revisado.docx"
+    doc.save(source)
+
+    report = apply_formatting(source, output, ReviewConfig(document_type="tcc"))
+    assert report["config"]["pagination_mode"] == "request"
+    codes = {action["code"] for action in report["actions_applied"]}
+    assert "pagination_section_break_inserted" in codes, report["actions_applied"]
+
+    revised = Document(output)
+    assert len(revised.sections) == 2
+    section_pretextual, section_textual = revised.sections
+    assert page_field_count(section_pretextual) == 0
+    assert section_textual.start_type == WD_SECTION_START.NEW_PAGE
+    assert page_field_count(section_textual) > 0
+
+
+def test_apply_formatting_does_not_touch_pagination_in_audit_mode(tmp_path: Path) -> None:
+    """Sem pagination_mode='request', o motor so audita: o documento deve
+    permanecer com uma unica secao, sem quebra nem campo PAGE inseridos."""
+    doc = Document()
+    _add(doc, "RESUMO", style="Heading 1")
+    _add(doc, "Resumo do trabalho com o numero minimo de palavras necessario " * 10)
+    _add(doc, "1 INTRODUÇÃO", style="Heading 1")
+    _add(doc, "Texto de corpo qualquer para preencher a introdução do documento.")
+    _add(doc, "REFERÊNCIAS", style="Heading 1")
+    _add(doc, "SILVA, João. Título do trabalho. Cidade: Editora, 2020.")
+    source = tmp_path / "original.docx"
+    output = tmp_path / "revisado.docx"
+    doc.save(source)
+
+    report = apply_formatting(source, output, ReviewConfig(document_type="tcc", pagination_mode="audit"))
+    codes = {action["code"] for action in report["actions_applied"]}
+    assert "pagination_section_break_inserted" not in codes
+    revised = Document(output)
+    assert len(revised.sections) == 1
 
 
 if __name__ == "__main__":

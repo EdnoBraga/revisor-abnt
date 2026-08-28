@@ -33,6 +33,7 @@ def public_job(job: dict) -> dict:
         "download_url": f"/api/revisions/{job_id}/download" if job["status"] == "completed" else None,
         "audit_url": f"/api/revisions/{job_id}/audit" if job["status"] == "completed" else None,
         "format_report_url": f"/api/revisions/{job_id}/format-report" if job["status"] == "completed" else None,
+        "format_report_pdf_url": f"/api/revisions/{job_id}/format-report-pdf" if job["status"] == "completed" else None,
         "review_summary": job.get("review_summary"),
     }
 
@@ -63,8 +64,8 @@ async def create_revision(
     document_type: str = Form("tcc"),
     citation_system: str = Form("auto"),
     font: str = Form("Times New Roman"),
-    toc_mode: str = Form("audit"),
-    pagination_mode: str = Form("audit"),
+    toc_mode: str = Form("insert-if-empty"),
+    pagination_mode: str = Form("request"),
     order_references: bool = Form(True),
     institution: str = Form("generic"),
     privacy_acknowledged: bool = Form(...),
@@ -135,3 +136,12 @@ def download_format_report(job_id: str) -> FileResponse:
     except ProcessingError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return FileResponse(path, media_type="application/json", filename="relatorio-revisao-abnt.json")
+
+
+@app.get("/api/revisions/{job_id}/format-report-pdf")
+def download_format_report_pdf(job_id: str) -> FileResponse:
+    try:
+        path = job_file(job_id, "trabalho-revisado-abnt_abnt_report.pdf")
+    except ProcessingError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return FileResponse(path, media_type="application/pdf", filename="relatorio-revisao-abnt.pdf")

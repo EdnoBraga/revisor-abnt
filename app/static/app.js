@@ -25,7 +25,7 @@ async function poll(statusUrl) {
     showResult(`
       <h2>Revisão concluída</h2>
       <p>${actionText}; ${issueText}. Baixe a nova cópia e confira o relatório antes da entrega.</p>
-      <p><a class="button-link" href="${job.download_url}">Baixar DOCX revisado</a><a class="text-link" href="${job.format_report_url}">Baixar relatório da revisão</a><a class="text-link" href="${job.audit_url}">Baixar auditoria original</a></p>
+      <p><a class="button-link" href="${job.download_url}">Baixar DOCX revisado</a><a class="text-link" href="${job.format_report_pdf_url}">Baixar relatório da revisão (PDF)</a><a class="text-link" href="${job.format_report_url}">Relatório em JSON</a><a class="text-link" href="${job.audit_url}">Auditoria original (JSON)</a></p>
     `, "success");
     submitButton.disabled = false;
     submitButton.textContent = "Revisar outro arquivo";
