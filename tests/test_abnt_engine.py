@@ -22,7 +22,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "revisor-abnt-docx" / "scrip
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from abnt_engine import ReviewConfig, apply_formatting, page_field_count, reference_title_span, scan_document  # noqa: E402
+from abnt_engine import ReviewConfig, add_word_field, apply_formatting, page_field_count, reference_title_span, scan_document  # noqa: E402
 
 
 def _add(doc, text, style=None, alignment=None, indent_cm=None):
@@ -278,6 +278,54 @@ def test_apply_formatting_applies_pagination_section_break_by_default(tmp_path: 
     assert page_field_count(section_pretextual) == 0
     assert section_textual.start_type == WD_SECTION_START.NEW_PAGE
     assert page_field_count(section_textual) > 0
+
+
+def test_apply_formatting_replaces_pre_existing_page_field(tmp_path: Path) -> None:
+    """Reproduz a queixa do usuario: 'quero que atualize, independente de como
+    estiver o arquivo de origem, pois o motivo da aplicacao e de fato corrigir'.
+    Um documento que ja chega com um campo PAGE no cabecalho global (comum em
+    modelos institucionais que numeram tudo, inclusive capa/pre-textuais) nao
+    pode mais ser deixado de lado -- o motor precisa substituir esse cabecalho
+    pela numeracao correta, comecando so na parte textual."""
+    doc = Document()
+    _add(doc, "NOME DO ALUNO", alignment=WD_ALIGN_PARAGRAPH.CENTER)
+    _add(doc, "RESUMO", style="Heading 1")
+    _add(doc, "Resumo do trabalho com o numero minimo de palavras necessario " * 10)
+    _add(doc, "1 INTRODUÇÃO", style="Heading 1")
+    _add(doc, "Texto de corpo qualquer para preencher a introdução do documento.")
+    _add(doc, "REFERÊNCIAS", style="Heading 1")
+    _add(doc, "SILVA, João. Título do trabalho. Cidade: Editora, 2020.")
+
+    # Simula um modelo institucional que ja numera a partir da capa (errado pela
+    # NBR 14724, mas um cenario real e comum).
+    section = doc.sections[0]
+    section.header.is_linked_to_previous = False
+    existing_header_paragraph = section.header.paragraphs[0] if section.header.paragraphs else section.header.add_paragraph()
+    existing_header_paragraph.add_run("Página ")
+    add_word_field(existing_header_paragraph, "PAGE")
+
+    source = tmp_path / "original.docx"
+    output = tmp_path / "revisado.docx"
+    doc.save(source)
+    assert page_field_count(Document(source).sections[0]) > 0  # pré-condição do teste
+
+    report = apply_formatting(source, output, ReviewConfig(document_type="tcc"))
+    codes = {action["code"] for action in report["actions_applied"]}
+    assert "pagination_section_break_inserted" in codes, report["actions_applied"]
+    pagination_action = next(a for a in report["actions_applied"] if a["code"] == "pagination_section_break_inserted")
+    assert "substituíd" in pagination_action["message"]
+
+    revised = Document(output)
+    assert len(revised.sections) == 2
+    section_pretextual, section_textual = revised.sections
+    # A seção pré-textual (capa, resumo) não pode mais mostrar número algum,
+    # mesmo tendo herdado o cabeçalho antigo que numerava tudo.
+    assert page_field_count(section_pretextual) == 0
+    # A seção textual tem exatamente um campo PAGE (o antigo foi removido, não
+    # apenas complementado por um novo).
+    header_xml = section_textual.header._element.xml.upper()
+    assert header_xml.count("PAGE") == 1
+    assert "PÁGINA" not in header_xml  # texto antigo "Página " não sobrou
 
 
 def test_apply_formatting_does_not_touch_pagination_in_audit_mode(tmp_path: Path) -> None:

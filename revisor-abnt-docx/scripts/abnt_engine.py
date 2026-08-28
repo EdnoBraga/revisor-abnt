@@ -986,6 +986,26 @@ def _insert_toc_if_missing(doc: Document, paragraphs: list[Paragraph], config: R
     return True
 
 
+def _reset_header_to_single_empty_paragraph(header) -> Paragraph:
+    """Remove todo o conteúdo existente de um cabeçalho e deixa exatamente um
+    parágrafo vazio pronto para receber conteúdo novo.
+
+    Remove QUALQUER filho existente do elemento -- não só `w:p`/`w:tbl`, mas
+    também blocos de conteúdo estruturado (`w:sdt`), que é como o Word grava um
+    campo de número de página inserido pela galeria pronta ("Inserir > Número de
+    página"). Um reset que só olhasse `w:p`/`w:tbl` deixaria esse `w:sdt` antigo
+    para trás, resultando em dois campos PAGE convivendo no mesmo cabeçalho.
+    Usado para garantir que uma numeração de página incorreta ou mal posicionada
+    já existente seja de fato substituída pela numeração correta -- não apenas
+    complementada.
+    """
+    header_elm = header._element
+    for child in list(header_elm):
+        header_elm.remove(child)
+    header_elm.append(OxmlElement("w:p"))
+    return header.paragraphs[0]
+
+
 def _insert_pagination_section_break(
     doc: Document,
     paragraphs: list[Paragraph],
@@ -1003,10 +1023,13 @@ def _insert_pagination_section_break(
     Como o campo é nativo, o próprio Word calcula o número absoluto correto ao
     abrir o arquivo; o motor nunca calcula nem grava um número fixo.
 
-    Só age quando há exatamente uma seção (documento ainda não tem quebra alguma) e
-    nenhum campo PAGE já existe -- em qualquer outro caso, o risco de conflitar com
-    uma paginação que o usuário já tenha montado manualmente é maior que o ganho, e
-    o motor prefere não mexer.
+    Age sempre que há exatamente uma seção, mesmo que o documento já tenha algum
+    campo PAGE nela -- nesse caso, o cabeçalho da nova seção textual é limpo e
+    reconstruído do zero (função é corrigir, não só avisar). Só desiste quando o
+    documento já tem mais de uma seção: nesse caso o motor não sabe se essas seções
+    já fazem parte de uma estrutura de paginação (ou de layout, como um anexo em
+    paisagem) montada manualmente, e o risco de sobrepor essa estrutura é maior que
+    o ganho.
     """
     if text_start_index is None or text_start_index <= 0:
         add_issue(
@@ -1023,18 +1046,11 @@ def _insert_pagination_section_break(
             code="pagination_not_auto_applied",
             severity="info",
             auto_fixable=False,
-            message="A numeração não foi aplicada automaticamente porque o documento já tem mais de uma seção. Como o motor não sabe se essas seções já fazem parte de uma paginação existente, prefere não mexer para não sobrepor uma configuração manual.",
+            message="A numeração não foi aplicada automaticamente porque o documento já tem mais de uma seção. Como o motor não sabe se essas seções já fazem parte de uma paginação existente ou de um layout intencional (por exemplo, um anexo em paisagem), prefere não mexer para não sobrepor uma configuração manual.",
         )
         return
-    if any(page_field_count(section) for section in doc.sections):
-        add_issue(
-            issues,
-            code="pagination_not_auto_applied",
-            severity="info",
-            auto_fixable=False,
-            message="A numeração não foi aplicada automaticamente porque já existe um campo PAGE no cabeçalho do documento. Revise manualmente se ele está posicionado a partir da página textual correta.",
-        )
-        return
+
+    replacing_existing_numbering = any(page_field_count(section) for section in doc.sections)
 
     split_paragraph = paragraphs[text_start_index]
     split_p_elm = split_paragraph._p
@@ -1072,23 +1088,35 @@ def _insert_pagination_section_break(
     # A sectPr original do corpo passa a descrever a seção 2 (textual + pós-textual).
     section2 = doc.sections[-1]
     section2.start_type = WD_SECTION_START.NEW_PAGE
+    # Desliga "primeira página diferente", se o documento já usava isso: senão a
+    # primeira página da seção textual (onde o número precisa aparecer) usaria um
+    # cabeçalho separado, potencialmente em branco, e o número sumiria justo ali.
+    section2.different_first_page_header_footer = False
     header = section2.header
     header.is_linked_to_previous = False
     section2.header_distance = Cm(2)
-    header_paragraph = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
-    for run in list(header_paragraph.runs):
-        run.text = ""
-        run._r.getparent().remove(run._r)
+    # Limpa o cabeçalho por completo antes de escrever o novo -- inclusive quando já
+    # havia um campo PAGE (ou qualquer outro conteúdo) nele, para substituir de fato
+    # uma numeração existente em vez de só complementá-la.
+    header_paragraph = _reset_header_to_single_empty_paragraph(header)
     header_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     header_paragraph.paragraph_format.first_line_indent = Cm(0)
     set_paragraph_font(header_paragraph, DEFAULT_FONT, 10)
     add_word_field(header_paragraph, "PAGE")
+    # O cabeçalho de "primeira página" já não é usado (desligamos a opção acima),
+    # mas seu conteúdo antigo continua fisicamente no arquivo se não for limpo --
+    # e é o que auditorias futuras (page_field_count) iriam encontrar. Esvazia por
+    # completo para não deixar um campo PAGE órfão para trás.
+    _reset_header_to_single_empty_paragraph(section2.first_page_header)
     requested_field_update(doc)
 
+    message = "Numeração configurada a partir da primeira página textual: foi inserida uma quebra de seção antes da INTRODUÇÃO, com campo de página nativo do Word na nova seção (sem número nas páginas pré-textuais) e continuando a contagem, sem reiniciar em 1. Abra o arquivo no Word e atualize os campos para ver o número calculado."
+    if replacing_existing_numbering:
+        message += " O documento já tinha algum conteúdo de numeração no cabeçalho; ele foi substituído por este, para garantir que o número só apareça a partir da parte textual."
     actions.append({
         "code": "pagination_section_break_inserted",
         "count": 1,
-        "message": "Numeração configurada a partir da primeira página textual: foi inserida uma quebra de seção antes da INTRODUÇÃO, com campo de página nativo do Word na nova seção (sem número nas páginas pré-textuais) e continuando a contagem, sem reiniciar em 1. Abra o arquivo no Word e atualize os campos para ver o número calculado.",
+        "message": message,
     })
 
 
